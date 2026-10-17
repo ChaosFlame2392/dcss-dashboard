@@ -22,7 +22,7 @@ const state = {
   runsLimit: 50,
   runsSearch: '',
   runsWinsOnly: false,
-  runsMinTurns: false,
+  explorerRendered: false,
   sortRules: [
     { field: 'end_time', order: 'desc' }
   ],
@@ -334,6 +334,7 @@ function getFilterParams() {
 // ======================== TAB NAVIGATION ========================
 
 function switchTab(tabId) {
+  if (state.currentTab === tabId) return;
   state.currentTab = tabId;
 
   document.querySelectorAll('.nav-tab').forEach((btn) => {
@@ -341,12 +342,12 @@ function switchTab(tabId) {
   });
 
   document.querySelectorAll('.tab-content').forEach((tab) => {
-    tab.style.display = tab.id === `tab-${tabId}` ? 'block' : 'none';
+    tab.classList.toggle('active', tab.id === `tab-${tabId}`);
   });
 
   if (tabId === 'matrix' && !state.matrixData) {
     loadMatrix();
-  } else if (tabId === 'runs') {
+  } else if (tabId === 'runs' && !state.explorerRendered) {
     renderExplorerRuns();
   }
 }
@@ -648,7 +649,6 @@ async function fetchAllGamesForClientCache() {
 function applyClientFilter() {
   const rawSearch = (state.runsSearch || '').trim();
   const winsOnly = state.runsWinsOnly;
-  const excludeSplats = state.runsMinTurns;
 
   // Multi-token splitting by spaces, commas, or carets ^
   const tokens = rawSearch
@@ -657,7 +657,6 @@ function applyClientFilter() {
 
   state.filteredGames = state.allGames.filter((run) => {
     if (winsOnly && !run.is_win) return false;
-    if (excludeSplats && (Number(run.turns) || 0) < 500) return false;
     if (tokens.length === 0) return true;
     return runMatchesAllTokens(run, tokens);
   });
@@ -859,7 +858,6 @@ function updateSortHeadersUI() {
 function renderRecentRuns() {
   const tbody = document.getElementById('recentRunsBody');
   if (!tbody) return;
-  tbody.innerHTML = '';
 
   const runs = state.allGames.slice(0, 10);
   if (runs.length === 0) {
@@ -867,10 +865,9 @@ function renderRecentRuns() {
     return;
   }
 
+  let html = '';
   runs.forEach((run) => {
-    const tr = document.createElement('tr');
-    if (run.is_win) tr.classList.add('win-row');
-
+    const winClass = run.is_win ? ' class="win-row"' : '';
     const dateStr = run.end_time
       ? new Date(run.end_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
       : '-';
@@ -879,25 +876,26 @@ function renderRecentRuns() {
       ? `<button class="btn btn-view-morgue" style="padding: 0.15rem 0.5rem; font-size: 0.75rem;" data-morgue="${escapeHtml(pathBasename(run.morgue_file))}">View</button>`
       : '-';
 
-    tr.innerHTML = `
-      <td style="font-family: var(--font-mono);">${dateStr}</td>
-      <td><strong>${escapeHtml(run.char_name || run.name)}</strong> <span style="color: var(--muted-foreground);">(${escapeHtml(run.combo || '')})</span></td>
-      <td style="color: var(--warning);">${escapeHtml(run.god || '-')}</td>
-      <td style="font-weight: 700;">${run.xl || 1}</td>
-      <td>${(run.score || 0).toLocaleString()}</td>
-      <td>${(run.turns || 0).toLocaleString()}</td>
-      <td>${escapeHtml(run.duration_formatted || '-')}</td>
-      <td>${run.is_win ? '<span class="win-badge">WON</span> ' : ''}${escapeHtml(run.outcome || 'Died')}</td>
-      <td>${morgueBtn}</td>
+    html += `
+      <tr${winClass}>
+        <td style="font-family: var(--font-mono);">${dateStr}</td>
+        <td><strong>${escapeHtml(run.char_name || run.name)}</strong> <span style="color: var(--muted-foreground);">(${escapeHtml(run.combo || '')})</span></td>
+        <td style="color: var(--warning);">${escapeHtml(run.god || '-')}</td>
+        <td style="font-weight: 700;">${run.xl || 1}</td>
+        <td>${(run.score || 0).toLocaleString()}</td>
+        <td>${(run.turns || 0).toLocaleString()}</td>
+        <td>${escapeHtml(run.duration_formatted || '-')}</td>
+        <td>${run.is_win ? '<span class="win-badge">WON</span> ' : ''}${escapeHtml(run.outcome || 'Died')}</td>
+        <td>${morgueBtn}</td>
+      </tr>
     `;
-    tbody.appendChild(tr);
   });
+  tbody.innerHTML = html;
 }
 
 function renderExplorerRuns() {
   const tbody = document.getElementById('allRunsBody');
   if (!tbody) return;
-  tbody.innerHTML = '';
 
   const total = state.filteredGames.length;
   const page = state.filteredGames.slice(state.runsOffset, state.runsOffset + state.runsLimit);
@@ -905,13 +903,13 @@ function renderExplorerRuns() {
   if (page.length === 0) {
     tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--muted-foreground); padding: 2.5rem;">No runs match your criteria.</td></tr>';
     updatePaginationUI(0, 0, 0);
+    state.explorerRendered = true;
     return;
   }
 
+  let html = '';
   page.forEach((run, index) => {
-    const tr = document.createElement('tr');
-    if (run.is_win) tr.classList.add('win-row');
-
+    const winClass = run.is_win ? ' class="win-row"' : '';
     const rowNum = state.runsOffset + index + 1;
     const dateStr = run.end_time
       ? new Date(run.end_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -921,21 +919,24 @@ function renderExplorerRuns() {
       ? `<button class="btn btn-view-morgue" style="padding: 0.15rem 0.5rem; font-size: 0.75rem;" data-morgue="${escapeHtml(pathBasename(run.morgue_file))}">View</button>`
       : '-';
 
-    tr.innerHTML = `
-      <td style="color: var(--muted-foreground);">${rowNum}</td>
-      <td>${dateStr}</td>
-      <td><strong>${escapeHtml(run.char_name || run.name)}</strong> <span style="color: var(--muted-foreground);">(${escapeHtml(run.combo || '')})</span></td>
-      <td style="color: var(--warning);">${escapeHtml(run.god || '-')}</td>
-      <td style="font-weight: 700;">${run.xl || 1}</td>
-      <td>${(run.score || 0).toLocaleString()}</td>
-      <td>${(run.turns || 0).toLocaleString()}</td>
-      <td>${escapeHtml(run.duration_formatted || '-')}</td>
-      <td>${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
-      <td>${run.is_win ? '<span class="win-badge">WON</span> ' : ''}${escapeHtml(run.outcome || 'Died')}</td>
-      <td>${morgueBtn}</td>
+    html += `
+      <tr${winClass}>
+        <td style="color: var(--muted-foreground);">${rowNum}</td>
+        <td>${dateStr}</td>
+        <td><strong>${escapeHtml(run.char_name || run.name)}</strong> <span style="color: var(--muted-foreground);">(${escapeHtml(run.combo || '')})</span></td>
+        <td style="color: var(--warning);">${escapeHtml(run.god || '-')}</td>
+        <td style="font-weight: 700;">${run.xl || 1}</td>
+        <td>${(run.score || 0).toLocaleString()}</td>
+        <td>${(run.turns || 0).toLocaleString()}</td>
+        <td>${escapeHtml(run.duration_formatted || '-')}</td>
+        <td>${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
+        <td>${run.is_win ? '<span class="win-badge">WON</span> ' : ''}${escapeHtml(run.outcome || 'Died')}</td>
+        <td>${morgueBtn}</td>
+      </tr>
     `;
-    tbody.appendChild(tr);
   });
+  tbody.innerHTML = html;
+  state.explorerRendered = true;
 
   updatePaginationUI(state.runsOffset + 1, Math.min(state.runsOffset + state.runsLimit, total), total);
 }
@@ -973,9 +974,6 @@ function clearRunsSearch() {
 function applyRunsFilter() {
   const winsCheck = document.getElementById('runsWinsOnly');
   state.runsWinsOnly = winsCheck ? winsCheck.checked : false;
-
-  const splatsCheck = document.getElementById('runsMinTurns');
-  state.runsMinTurns = splatsCheck ? splatsCheck.checked : false;
 
   applyClientFilter();
   renderExplorerRuns();
@@ -1201,36 +1199,31 @@ function showPopoverForCell(td, combo) {
     }
   }
 
-  // Make popover block and measure dimensions
-  popover.style.display = 'block';
-  popover.style.visibility = 'hidden';
-
-  const rect = popover.getBoundingClientRect();
-  const popWidth = rect.width || 280;
-  const popHeight = rect.height || 190;
+  const popWidth = 300;
+  const popHeight = 220;
 
   let x = 100;
   let y = 100;
 
   if (td && td.getBoundingClientRect) {
     const tdRect = td.getBoundingClientRect();
-    x = tdRect.right + 12;
+    x = tdRect.right + 10;
     y = tdRect.top - 6;
 
     if (x + popWidth > window.innerWidth - 12) {
-      x = tdRect.left - popWidth - 12;
+      x = tdRect.left - popWidth - 10;
     }
   }
 
   if (x < 12) x = 12;
   if (y + popHeight > window.innerHeight - 12) {
-    y = window.innerHeight - popHeight - 12;
+    y = Math.max(12, window.innerHeight - popHeight - 12);
   }
   if (y < 12) y = 12;
 
   popover.style.left = `${Math.round(x)}px`;
   popover.style.top = `${Math.round(y)}px`;
-  popover.style.visibility = 'visible';
+  popover.style.display = 'block';
 }
 
 function showPopover(event, combo) {

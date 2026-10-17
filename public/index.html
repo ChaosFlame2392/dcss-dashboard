@@ -61,7 +61,7 @@
     </section>
 
     <!-- TAB 1: OVERVIEW & PROFILE -->
-    <div id="tab-overview" class="tab-content">
+    <div id="tab-overview" class="tab-content active">
       <!-- Active Ongoing Run Hero Card (Visible when game is running) -->
       <section id="activeRunBanner" class="active-game-banner" style="display: none;">
         <!-- Character Selector Tabs (Visible when activeRuns.length > 1) -->
@@ -200,7 +200,7 @@
     </div>
 
     <!-- TAB 2: SPECIES x BACKGROUND MATRIX -->
-    <div id="tab-matrix" class="tab-content" style="display: none;">
+    <div id="tab-matrix" class="tab-content">
       <section class="matrix-section">
         <div class="matrix-header">
           <div>
@@ -228,7 +228,7 @@
     </div>
 
     <!-- TAB 3: RUN RECOMMENDER -->
-    <div id="tab-suggest" class="tab-content" style="display: none;">
+    <div id="tab-suggest" class="tab-content">
       <!-- Combo Roll Section -->
       <section class="roll-section">
         <div class="roll-header">
@@ -261,7 +261,7 @@
     </div>
 
     <!-- TAB 4: RUN EXPLORER -->
-    <div id="tab-runs" class="tab-content" style="display: none;">
+    <div id="tab-runs" class="tab-content">
       <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem;">
         <div style="display: flex; gap: 0.75rem; align-items: center; flex: 1; max-width: 500px;">
           <input
@@ -279,10 +279,6 @@
           <label style="font-size: 0.8rem; color: var(--foreground); cursor: pointer;" title="Show only winning games">
             <input type="checkbox" id="runsWinsOnly" onchange="applyRunsFilter()" />
             Wins Only
-          </label>
-          <label style="font-size: 0.8rem; color: var(--foreground); cursor: pointer;" title="Hide D:1 / early game deaths under 500 turns">
-            <input type="checkbox" id="runsMinTurns" onchange="applyRunsFilter()" />
-            Exclude D:1 splats (&lt; 500 turns)
           </label>
         </div>
       </div>

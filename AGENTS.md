@@ -137,3 +137,28 @@ To activate debug logging for troubleshooting directory discovery, sync ingestio
 2. Change `"debug": false` to `"debug": true`.
 3. Save the file. Detailed discovery traces, active run ingestion, and HTTP response timings will be logged to the console.
 
+---
+
+## 8. Backlog & Architectural Considerations
+
+### 8.1 Early Splat / Short Run Filter (`runsMinTurns`)
+- **Context & Motivation:** DCSS players frequently experience rapid D:1 deaths (< 500 turns or < 1 minute) when experimenting with combos, testing keybindings, or hitting bad early RNG. These runs can skew speed/duration metrics and add noise to Run Explorer.
+- **Decision & Current State:** An "Exclude D:1 splats (< 500 turns)" toggle was prototyped and tested, but intentionally removed from the production UI to keep the interface clean, fast, and unopinionated (avoiding hardcoded magic numbers like 500 turns).
+- **Future Blueprint:** If re-introduced, do not hardcode a specific "D:1" checkbox. Instead, consider:
+  1. A generalized turn-count or duration filter dropdown/slider (e.g. `Min Turns: All / >500 / >2000`).
+  2. An optional advanced filter drawer that allows filtering by minimum XL (e.g. `XL >= 3`).
+  3. Client-side filter implementation in `applyClientFilter()`: `if (minTurns && (Number(run.turns) || 0) < minTurns) return false;`.
+
+### 8.2 Multi-Column Sorting Engine
+- **UX Design:** Run Explorer supports multi-column sorting via `Shift+Click` (or `Ctrl/Cmd+Click`) on table headers.
+- **Priority Indicators:** Superscripts (`¹`, `²`, `³`) indicate sort priority directly next to sort arrows `▲`/`▼`.
+- **Sort Pills Bar:** An active sort breadcrumb bar displays currently applied sort criteria with individual remove buttons and a "Reset Sort" button.
+- **Tie-Breaking:** Sorting falls back to `end_time DESC` so identical values have deterministic order.
+
+### 8.3 Zero-Lag UI Performance Rules
+- **Atomic DOM Updates:** Functions that render run lists (`renderRecentRuns`, `renderExplorerRuns`) MUST concatenate HTML strings in memory and execute a single `tbody.innerHTML = html` assignment. Never call `appendChild` inside a per-row loop.
+- **Tab Switching (0ms Feel):** Tab switching uses CSS classes (`.tab-content.active { display: block; }`) rather than inline DOM mutation. Runs table rendering is cached via `state.explorerRendered` so switching tabs does not rebuild table DOM nodes.
+- **Layout Containment:** Large scrollable tables (`.matrix-container`, `.games-table-wrapper`) use CSS `contain: layout` to isolate table reflows from the rest of the application layout.
+- **No `transition: all`:** Avoid broad `transition: all` CSS rules on interactive elements (tabs, buttons). Always specify exact properties (e.g. `transition: background-color 0.1s ease, color 0.1s ease`) to prevent continuous layout metric polling during animations.
+
+
