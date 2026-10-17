@@ -131,13 +131,13 @@ function parseActiveDump(content, filePath = '') {
   let piety = null;
   let gold = 0;
 
-  const hpMatch = content.match(/Health:\s*(-?\d+)\/(\d+)/);
+  const hpMatch = content.match(/(?:Health|HP):\s*(-?\d+)\/(\d+)/i);
   if (hpMatch) {
     hp = parseInt(hpMatch[1], 10);
     maxHp = parseInt(hpMatch[2], 10);
   }
 
-  const mpMatch = content.match(/Magic:\s*(-?\d+)\/(\d+)/);
+  const mpMatch = content.match(/(?:Magic|MP):\s*(-?\d+)\/(\d+)/i);
   if (mpMatch) {
     mp = parseInt(mpMatch[1], 10);
     maxMp = parseInt(mpMatch[2], 10);

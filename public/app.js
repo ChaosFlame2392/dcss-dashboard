@@ -304,9 +304,9 @@ async function loadVersions() {
   }
 }
 
-async function loadAllData() {
+async function loadAllData(force = false) {
   await Promise.all([
-    loadActiveRun(),
+    loadActiveRun(force),
     loadStats(),
     loadMatrix(),
     loadSuggest(),
@@ -354,7 +354,7 @@ function switchTab(tabId) {
 
 // ======================== ACTIVE GAME TRACKER ========================
 
-async function loadActiveRun() {
+async function loadActiveRun(forceRender = false) {
   try {
     const res = await fetch('/api/active');
     const data = await res.json();
@@ -396,7 +396,7 @@ async function loadActiveRun() {
 
     const active = state.activeRuns[state.selectedActiveRunIndex];
     const prev = state.activeRun;
-    const isSame = prev && active && prev.name === active.name && prev.turns === active.turns && prev.hp === active.hp && prev.place === active.place && prev.xl === active.xl;
+    const isSame = !forceRender && prev && active && prev.name === active.name && prev.turns === active.turns && prev.hp === active.hp && prev.place === active.place && prev.xl === active.xl;
     state.activeRun = active;
     if (!isSame) {
       renderActiveRunDetails(active);
@@ -1640,7 +1640,7 @@ async function triggerSync() {
     const res = await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force: true }) });
     const data = await res.json();
     if (data.success) {
-      await loadAllData();
+      await loadAllData(true);
     }
   } catch (err) {
     console.error('Sync failed:', err);

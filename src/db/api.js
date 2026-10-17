@@ -695,11 +695,11 @@ function getActiveRuns(db) {
     }
 
     return {
-      ...row,
       ...extraData,
+      ...row,
       id: row.id,
       duration_formatted: formatDuration(row.duration_seconds),
-      runes_list: row.runes_list ? JSON.parse(row.runes_list) : (extraData.runes_list || []),
+      runes_list: row.runes_list ? (typeof row.runes_list === 'string' ? JSON.parse(row.runes_list) : row.runes_list) : (extraData.runes_list || []),
       is_active: 1,
     };
   });

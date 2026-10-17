@@ -148,9 +148,19 @@ app.get('/api/games', (req, res) => {
   }
 });
 
-// 4. Active / Ongoing Run Status
+// 4. Active / Ongoing Run Status (with automatic on-demand sync)
 app.get('/api/active', (req, res) => {
   try {
+    const now = Date.now();
+    if (!isSyncing && (now - lastSyncTimestamp > 4000)) {
+      try {
+        client.sync();
+        lastSyncTimestamp = Date.now();
+      } catch (syncErr) {
+        // Continue to serve whatever is in DB if sync errors
+      }
+    }
+
     const activeRuns = client.getActiveRuns ? client.getActiveRuns() : [];
     const activeRun = activeRuns[0] || (client.getActiveRun ? client.getActiveRun() : null);
     res.json({

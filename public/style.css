@@ -448,16 +448,21 @@ header.navbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
   font-size: 0.85rem;
 }
 
 .stat-row .label {
   color: var(--muted-foreground);
+  white-space: nowrap;
 }
 
 .stat-row .val {
   font-weight: 700;
   color: var(--foreground);
+  white-space: nowrap;
+  text-align: right;
+  margin-left: auto;
 }
 
 /* Matrix Section */

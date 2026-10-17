@@ -229,19 +229,42 @@ function sync(db, options = {}) {
       ?, ?, ?, ?, ?, ?
     )
     ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      species = excluded.species,
+      species_abbr = excluded.species_abbr,
+      background = excluded.background,
+      background_abbr = excluded.background_abbr,
+      combo = excluded.combo,
+      char_name = excluded.char_name,
       god = excluded.god,
       score = excluded.score,
       turns = excluded.turns,
+      aut = excluded.aut,
       duration_seconds = excluded.duration_seconds,
+      end_time = excluded.end_time,
       place = excluded.place,
+      branch = excluded.branch,
+      level = excluded.level,
+      xl = excluded.xl,
+      hp = excluded.hp,
+      max_hp = excluded.max_hp,
+      mp = excluded.mp,
+      max_mp = excluded.max_mp,
       killer = excluded.killer,
+      ktyp = excluded.ktyp,
+      dam = excluded.dam,
       outcome = excluded.outcome,
       is_win = excluded.is_win,
       runes_count = excluded.runes_count,
       runes_list = COALESCE(excluded.runes_list, games.runes_list),
       turn_speed = excluded.turn_speed,
+      source_file = excluded.source_file,
       morgue_file = COALESCE(excluded.morgue_file, games.morgue_file),
-      is_active = excluded.is_active
+      version = excluded.version,
+      seed = excluded.seed,
+      game_type = excluded.game_type,
+      is_active = excluded.is_active,
+      raw_data = excluded.raw_data
   `);
 
   const allActiveSaves = [];
