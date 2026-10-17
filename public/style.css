@@ -69,6 +69,7 @@ body {
   max-width: 1440px;
   margin: 0 auto;
   padding: 0 1.5rem 3rem 1.5rem;
+  position: relative;
 }
 
 /* Navbar */
@@ -136,13 +137,26 @@ header.navbar {
   font-weight: 700;
 }
 
-/* Tab Content Switching (Instant 0ms display toggle) */
+/* Tab Content Switching — Instant 0ms Compositor Switch (Preserves computed layout tree) */
 .tab-content {
-  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 .tab-content.active {
-  display: block;
+  position: relative;
+  visibility: visible;
+  pointer-events: auto;
+  opacity: 1;
+  height: auto;
+  overflow: visible;
 }
 
 .nav-actions {
@@ -486,11 +500,12 @@ header.navbar {
   border: 1px solid var(--border);
   border-radius: 4px;
   max-width: 100%;
-  contain: layout;
 }
 
 table.matrix-table {
-  border-collapse: collapse;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.75rem;
   width: 100%;
   text-align: center;
@@ -500,8 +515,12 @@ table.matrix-table {
 table.matrix-table th,
 table.matrix-table td {
   padding: 0.35rem 0.45rem;
-  border: 1px solid var(--border);
-  min-width: 34px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  min-width: 36px;
+  width: 36px;
+  max-width: 36px;
+  box-sizing: border-box;
 }
 
 table.matrix-table th {
@@ -511,6 +530,19 @@ table.matrix-table th {
   position: sticky;
   top: 0;
   z-index: 10;
+  user-select: none;
+}
+
+table.matrix-table th[data-bg],
+table.matrix-table td[data-bg-total] {
+  cursor: pointer;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+table.matrix-table th[data-bg]:hover,
+table.matrix-table td[data-bg-total]:hover {
+  background-color: var(--surface-emphasis);
+  color: var(--link);
 }
 
 table.matrix-table th.species-col,
@@ -523,6 +555,22 @@ table.matrix-table td.species-col {
   left: 0;
   background-color: var(--surface);
   z-index: 12;
+  min-width: 76px;
+  width: 76px;
+  max-width: 76px;
+  border-left: 1px solid var(--border);
+}
+
+table.matrix-table td.species-col[data-species],
+table.matrix-table td[data-species-total] {
+  cursor: pointer;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+table.matrix-table td.species-col[data-species]:hover,
+table.matrix-table td[data-species-total]:hover {
+  background-color: var(--surface-emphasis);
+  color: var(--link);
 }
 
 table.matrix-table th.species-col {

@@ -130,7 +130,7 @@
       <section class="stats-grid">
         <!-- Score Card -->
         <div class="stat-card">
-          <div class="stat-card-title">Score Metrics <span>🏆</span></div>
+          <div class="stat-card-title">Score Metrics</div>
           <div class="stat-list">
             <div class="stat-row"><span class="label">Best Score</span><span class="val" id="statBestScore">0</span></div>
             <div class="stat-row"><span class="label">Average Score</span><span class="val" id="statAvgScore">0</span></div>
@@ -141,7 +141,7 @@
 
         <!-- Screentime Card -->
         <div class="stat-card">
-          <div class="stat-card-title">Playtime & Duration <span>⏱️</span></div>
+          <div class="stat-card-title">Playtime &amp; Duration</div>
           <div class="stat-list">
             <div class="stat-row"><span class="label">Total Playtime</span><span class="val" id="statTotalTime">00:00:00</span></div>
             <div class="stat-row"><span class="label">Average Run Length</span><span class="val" id="statAvgDuration">00:00:00</span></div>
@@ -152,7 +152,7 @@
 
         <!-- Turns & Speed Card -->
         <div class="stat-card">
-          <div class="stat-card-title">Turn Statistics <span>⚡</span></div>
+          <div class="stat-card-title">Turn Statistics</div>
           <div class="stat-list">
             <div class="stat-row"><span class="label">Total Turns</span><span class="val" id="statTotalTurns">0</span></div>
             <div class="stat-row"><span class="label">Average Turns / Run</span><span class="val" id="statAvgTurns">0</span></div>
@@ -163,7 +163,7 @@
 
         <!-- Runes & Milestones Card -->
         <div class="stat-card">
-          <div class="stat-card-title">Runes & Milestones <span>💎</span></div>
+          <div class="stat-card-title">Runes &amp; Milestones</div>
           <div class="stat-list">
             <div class="stat-row"><span class="label">Runes Extracted</span><span class="val" style="color: var(--warning);" id="statRunesWon">0</span></div>
             <div class="stat-row"><span class="label">Max Runes in 1 Run</span><span class="val" id="statMaxRunes">0</span></div>
@@ -236,7 +236,6 @@
       <section class="roll-section">
         <div class="roll-header">
           <div class="roll-title">
-            <span>🎲</span>
             <span>Combo Roller</span>
           </div>
           <div class="roll-buttons">
@@ -276,7 +275,6 @@
             oninput="handleRunsSearchInput()"
           />
           <button class="btn" onclick="clearRunsSearch()">Clear</button>
-          <button class="btn btn-view-morgue" id="runsActiveDumpBtn" style="display: none; padding: 0.35rem 0.65rem; font-size: 0.75rem; border-color: var(--success); color: var(--success); white-space: nowrap;" title="View character dump for active game">Live Dump</button>
         </div>
 
         <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
@@ -325,21 +323,39 @@
     </div>
   </div>
 
-  <!-- Popover for Matrix Cell Hover (Fixed Viewport Positioning) -->
+  <!-- Popover for Matrix Cell and Header Hover (Fixed Viewport Positioning) -->
   <div id="comboPopover" class="combo-popover" style="display: none;">
     <div class="popover-title" id="popoverTitle">Demigod Hunter</div>
-    <div class="popover-stats">
-      <div>Games: <strong id="popoverGames">0</strong></div>
-      <div>Wins: <strong id="popoverWins">0</strong></div>
-      <div>Win Rate: <strong id="popoverRate">0.00%</strong></div>
-      <div>Max XL: <strong id="popoverXl">0</strong></div>
-      <div>Best Score: <strong id="popoverScore">0</strong></div>
-      <div>Max Runes: <strong id="popoverRunes">0</strong></div>
+
+    <!-- Combo Cell View -->
+    <div id="popoverComboSection">
+      <div class="popover-stats">
+        <div>Games: <strong id="popoverGames">0</strong></div>
+        <div>Wins: <strong id="popoverWins">0</strong></div>
+        <div>Win Rate: <strong id="popoverRate">0.00%</strong></div>
+        <div>Max XL: <strong id="popoverXl">0</strong></div>
+        <div>Best Score: <strong id="popoverScore">0</strong></div>
+        <div>Max Runes: <strong id="popoverRunes">0</strong></div>
+      </div>
+      <div class="popover-gods">
+        <div style="font-weight: 700; margin-bottom: 0.25rem;">Deities Worshipped:</div>
+        <div id="popoverGodsList">None</div>
+      </div>
     </div>
-    <div class="popover-gods">
-      <div style="font-weight: 700; margin-bottom: 0.25rem;">Deities Worshipped:</div>
-      <div id="popoverGodsList">None</div>
+
+    <!-- Header (Background / Species) View -->
+    <div id="popoverHeaderSection" style="display: none;">
+      <div class="popover-stats">
+        <div>Category: <strong id="popoverHeaderCategory">-</strong></div>
+        <div>Total Games: <strong id="popoverHeaderGames">0</strong></div>
+        <div>Total Wins: <strong id="popoverHeaderWins">0</strong></div>
+        <div>Win Rate: <strong id="popoverHeaderRate">0.00%</strong></div>
+        <div>Combos Played: <strong id="popoverHeaderPlayed">0</strong></div>
+        <div>Combos Won: <strong id="popoverHeaderWon">0</strong></div>
+      </div>
     </div>
+
+    <!-- God Restrictions (Shown for species or combo if restricted) -->
     <div id="popoverRestrictions" class="popover-restrictions" style="display: none;">
       <div style="font-weight: 700; margin-bottom: 0.25rem; color: var(--danger);">God Restrictions:</div>
       <div id="popoverRestrictionsText" style="color: var(--muted-foreground);">None</div>

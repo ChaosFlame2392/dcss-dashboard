@@ -366,8 +366,6 @@ async function loadActiveRun() {
 
     if (state.activeRuns.length === 0) {
       if (banner) banner.style.display = 'none';
-      const explorerDumpBtn = document.getElementById('runsActiveDumpBtn');
-      if (explorerDumpBtn) explorerDumpBtn.style.display = 'none';
       state.activeRun = null;
       return;
     }
@@ -438,18 +436,6 @@ function renderActiveRunDetails(active) {
       dumpBtn.dataset.morgue = dumpFilename;
     } else {
       dumpBtn.style.display = 'none';
-    }
-  }
-
-  // Live Dump Shortcut Button in Run Explorer
-  const explorerDumpBtn = document.getElementById('runsActiveDumpBtn');
-  if (explorerDumpBtn) {
-    if (dumpFilename) {
-      explorerDumpBtn.style.display = 'inline-block';
-      explorerDumpBtn.dataset.morgue = dumpFilename;
-      explorerDumpBtn.textContent = `⚡ Live Dump (${active.combo || active.name})`;
-    } else {
-      explorerDumpBtn.style.display = 'none';
     }
   }
 
@@ -584,12 +570,10 @@ function matchesToken(run, token) {
   // 2. 2-character species or background abbreviation (exact abbreviation resolution)
   if (token.length === 2) {
     if (SPECIES_BY_ABBR[token]) {
-      if ((run.species_abbr || '').toLowerCase() === token) return true;
-      if ((run.species || '').toLowerCase() === SPECIES_BY_ABBR[token].name.toLowerCase()) return true;
+      if (run._spAbbrLower === token || run._spLower === SPECIES_BY_ABBR[token].name.toLowerCase()) return true;
     }
     if (BG_BY_ABBR[token]) {
-      if ((run.background_abbr || '').toLowerCase() === token) return true;
-      if ((run.background || '').toLowerCase() === BG_BY_ABBR[token].name.toLowerCase()) return true;
+      if (run._bgAbbrLower === token || run._bgLower === BG_BY_ABBR[token].name.toLowerCase()) return true;
     }
     // If it matches a known 2-letter species/background abbreviation, do not do loose substring matching
     if (SPECIES_BY_ABBR[token] || BG_BY_ABBR[token]) {
@@ -599,14 +583,12 @@ function matchesToken(run, token) {
 
   // 3. Species by full name
   if (SPECIES_BY_NAME[token]) {
-    if ((run.species || '').toLowerCase() === token) return true;
-    if ((run.species_abbr || '').toLowerCase() === SPECIES_BY_NAME[token].abbr.toLowerCase()) return true;
+    if (run._spLower === token || run._spAbbrLower === SPECIES_BY_NAME[token].abbr.toLowerCase()) return true;
   }
 
   // 4. Background by full name
   if (BG_BY_NAME[token]) {
-    if ((run.background || '').toLowerCase() === token) return true;
-    if ((run.background_abbr || '').toLowerCase() === BG_BY_NAME[token].abbr.toLowerCase()) return true;
+    if (run._bgLower === token || run._bgAbbrLower === BG_BY_NAME[token].abbr.toLowerCase()) return true;
   }
 
   // 5. God alias / abbreviation / name
@@ -615,29 +597,17 @@ function matchesToken(run, token) {
   }
   if (DCSS_GOD_ALIASES[token]) {
     const target = DCSS_GOD_ALIASES[token];
-    const rg = (run.god || '').trim().toLowerCase();
+    const rg = (run._godLower || '').trim();
     if (rg && (rg === target || rg.startsWith(target) || target.startsWith(rg))) return true;
   }
-  if (run.god && run.god.trim().toLowerCase().startsWith(token)) return true;
+  if (run._godLower && run._godLower.trim().startsWith(token)) return true;
 
   // 6. Win
   if ((token === 'win' || token === 'won') && run.is_win) return true;
 
-  // 7. General text field substring search
-  if (
-    (run.combo && run.combo.toLowerCase().includes(token)) ||
-    (run.species && run.species.toLowerCase().includes(token)) ||
-    (run.background && run.background.toLowerCase().includes(token)) ||
-    (run.char_name && run.char_name.toLowerCase().includes(token)) ||
-    (run.name && run.name.toLowerCase().includes(token)) ||
-    (run.god && run.god.toLowerCase().includes(token)) ||
-    (run.killer && run.killer.toLowerCase().includes(token)) ||
-    (run.place && run.place.toLowerCase().includes(token)) ||
-    (run.outcome && run.outcome.toLowerCase().includes(token)) ||
-    (run.seed && String(run.seed).toLowerCase().includes(token)) ||
-    (run.xl !== undefined && String(run.xl) === token)
-  ) {
-    return true;
+  // 7. Fast single-pass substring search via precomputed haystack
+  if (run._haystack) {
+    return run._haystack.includes(token);
   }
 
   return false;
@@ -663,7 +633,23 @@ async function fetchAllGamesForClientCache() {
 
     const res = await fetch(`/api/games?${params.toString()}`);
     const data = await res.json();
-    state.allGames = data.games || [];
+    state.allGames = (data.games || []).map((r) => {
+      // Pre-compute lightweight integer timestamp and lowercase fields for 0ms sorting and filtering
+      r._time = r.end_time ? new Date(r.end_time).getTime() : 0;
+      r._comboLower = (r.combo || r.char_name || '').toLowerCase();
+      r._godLower = (r.god || '').toLowerCase();
+      r._spLower = (r.species || '').toLowerCase();
+      r._bgLower = (r.background || '').toLowerCase();
+      r._spAbbrLower = (r.species_abbr || '').toLowerCase();
+      r._bgAbbrLower = (r.background_abbr || '').toLowerCase();
+      r._outcomeLower = (r.outcome || '').toLowerCase();
+      r._haystack = [
+        r.combo, r.species, r.species_abbr, r.background, r.background_abbr,
+        r.god, r.killer, r.place, r.outcome, r.char_name, r.name, r.seed,
+        r.xl !== undefined ? String(r.xl) : ''
+      ].filter(Boolean).join(' ').toLowerCase();
+      return r;
+    });
 
     // Filter and sort in-memory
     applyClientFilter();
@@ -698,17 +684,11 @@ function compareRuns(a, b, field) {
     case 'id':
       return (Number(a.id) || 0) - (Number(b.id) || 0);
     case 'end_time':
-      return (new Date(a.end_time || 0)).getTime() - (new Date(b.end_time || 0)).getTime();
-    case 'combo': {
-      const ca = (a.combo || a.char_name || '').toLowerCase();
-      const cb = (b.combo || b.char_name || '').toLowerCase();
-      return ca.localeCompare(cb);
-    }
-    case 'god': {
-      const ga = (a.god || '').toLowerCase();
-      const gb = (b.god || '').toLowerCase();
-      return ga.localeCompare(gb);
-    }
+      return (a._time || 0) - (b._time || 0);
+    case 'combo':
+      return (a._comboLower || '').localeCompare(b._comboLower || '');
+    case 'god':
+      return (a._godLower || '').localeCompare(b._godLower || '');
     case 'xl':
       return (Number(a.xl) || 0) - (Number(b.xl) || 0);
     case 'score':
@@ -723,10 +703,10 @@ function compareRuns(a, b, field) {
       const wa = a.is_win ? 1 : 0;
       const wb = b.is_win ? 1 : 0;
       if (wa !== wb) return wa - wb;
-      return (a.outcome || '').localeCompare(b.outcome || '');
+      return (a._outcomeLower || '').localeCompare(b._outcomeLower || '');
     }
     default:
-      return (new Date(a.end_time || 0)).getTime() - (new Date(b.end_time || 0)).getTime();
+      return (a._time || 0) - (b._time || 0);
   }
 }
 
@@ -741,7 +721,7 @@ function sortRunsMulti(runs, sortRules) {
         return rule.order === 'asc' ? comp : -comp;
       }
     }
-    return (new Date(b.end_time || 0)).getTime() - (new Date(a.end_time || 0)).getTime();
+    return (b._time || 0) - (a._time || 0);
   });
 }
 
@@ -884,7 +864,7 @@ function updateSortHeadersUI() {
         `;
       });
       pillsHtml += `<button class="btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;" onclick="resetSort()">Reset Sort</button>`;
-      pillsHtml += `<span style="color: var(--muted-foreground); font-size: 0.7rem; margin-left: auto;">💡 Tip: Shift+click headers to add secondary sort</span>`;
+      pillsHtml += `<span style="color: var(--muted-foreground); font-size: 0.7rem; margin-left: auto;">Tip: Shift+click headers to add secondary sort</span>`;
       sortBar.innerHTML = pillsHtml;
     } else {
       sortBar.style.display = 'none';
@@ -1064,30 +1044,30 @@ function renderMatrix() {
 
   let html = '<table class="matrix-table"><thead><tr>';
   html += '<th class="species-col">Species</th>';
-  html += '<th style="min-width: 44px; color: var(--page-heading);">Total</th>';
+  html += '<th class="total-col" style="min-width: 44px; color: var(--page-heading);">Total</th>';
 
   backgrounds.forEach((bg) => {
-    html += `<th title="${bg.name} (${bg.category})">${bg.abbr}</th>`;
+    html += `<th data-bg="${bg.abbr}">${bg.abbr}</th>`;
   });
   html += '</tr></thead><tbody>';
 
   // Column Totals Summary Row
   html += '<tr style="background-color: var(--surface-muted); font-weight: 700;">';
   html += '<td class="species-col" style="color: var(--page-heading);">Total</td>';
-  html += `<td style="color: var(--page-heading);">${formatMetricValue(columnTotals?.all?.[metric] ?? 0, metric)}</td>`;
+  html += `<td class="total-col" style="color: var(--page-heading);">${formatMetricValue(columnTotals?.all?.[metric] ?? 0, metric)}</td>`;
   backgrounds.forEach((bg) => {
     const colTot = columnTotals?.[bg.abbr]?.[metric] ?? 0;
-    html += `<td>${colTot > 0 ? formatMetricValue(colTot, metric) : '-'}</td>`;
+    html += `<td data-bg-total="${bg.abbr}">${colTot > 0 ? formatMetricValue(colTot, metric) : '-'}</td>`;
   });
   html += '</tr>';
 
   // Species Rows
   species.forEach((sp) => {
     html += '<tr>';
-    html += `<td class="species-col" title="${sp.name}">${sp.abbr}</td>`;
+    html += `<td class="species-col" data-species="${sp.abbr}">${sp.abbr}</td>`;
 
     const rowTot = rowTotals?.[sp.abbr]?.[metric] ?? 0;
-    html += `<td style="font-weight: 700;">${rowTot > 0 ? formatMetricValue(rowTot, metric) : '-'}</td>`;
+    html += `<td class="total-col" data-species-total="${sp.abbr}" style="font-weight: 700;">${rowTot > 0 ? formatMetricValue(rowTot, metric) : '-'}</td>`;
 
     backgrounds.forEach((bg) => {
       const combo = `${sp.abbr}${bg.abbr}`;
@@ -1095,7 +1075,7 @@ function renderMatrix() {
       const isUnavailable = UNAVAILABLE_COMBOS.has(combo);
 
       if (isUnavailable || (cell && !cell.isValid)) {
-        html += `<td class="cell-unavailable" data-combo="${combo}" title="${escapeHtml(sp.name)} ${escapeHtml(bg.name)} (Forbidden / Unavailable)">·</td>`;
+        html += `<td class="cell-unavailable" data-combo="${combo}">·</td>`;
       } else if (cell && cell.wins > 0) {
         const val = getCellValue(cell, metric);
         html += `<td class="cell-won" data-combo="${combo}">${val}</td>`;
@@ -1134,26 +1114,95 @@ function initMatrixEvents() {
   if (!container || container.dataset.eventsBound) return;
   container.dataset.eventsBound = 'true';
 
-  let currentTargetTd = null;
+  let currentTargetEl = null;
 
   container.addEventListener('mouseover', (e) => {
-    const td = e.target.closest('td[data-combo]');
-    if (!td || td === currentTargetTd) return;
-    currentTargetTd = td;
-    showPopoverForCell(td, td.dataset.combo);
+    // 1. Combo Cell
+    const cell = e.target.closest('td[data-combo]');
+    if (cell) {
+      if (cell === currentTargetEl) return;
+      currentTargetEl = cell;
+      showPopoverForCell(cell, cell.dataset.combo);
+      return;
+    }
+
+    // 2. Background Column Header or Column Total
+    const bgHeader = e.target.closest('th[data-bg], td[data-bg-total]');
+    if (bgHeader) {
+      if (bgHeader === currentTargetEl) return;
+      currentTargetEl = bgHeader;
+      const bgAbbr = bgHeader.dataset.bg || bgHeader.dataset.bgTotal;
+      showPopoverForBackground(bgHeader, bgAbbr);
+      return;
+    }
+
+    // 3. Species Row Header or Row Total
+    const spHeader = e.target.closest('td[data-species], td[data-species-total]');
+    if (spHeader) {
+      if (spHeader === currentTargetEl) return;
+      currentTargetEl = spHeader;
+      const spAbbr = spHeader.dataset.species || spHeader.dataset.speciesTotal;
+      showPopoverForSpecies(spHeader, spAbbr);
+      return;
+    }
+
+    // 4. Over neutral elements, borders, or non-data headers: hide immediately
+    currentTargetEl = null;
+    hidePopover();
   });
 
   container.addEventListener('mouseleave', () => {
-    currentTargetTd = null;
+    currentTargetEl = null;
     hidePopover();
   });
 
   container.addEventListener('click', (e) => {
-    const td = e.target.closest('td[data-combo]');
-    if (td && (td.classList.contains('cell-won') || td.classList.contains('cell-played'))) {
-      filterByCombo(td.dataset.combo);
+    const cell = e.target.closest('td[data-combo]');
+    if (cell && (cell.classList.contains('cell-won') || cell.classList.contains('cell-played'))) {
+      filterByCombo(cell.dataset.combo);
+      return;
+    }
+
+    const bgHeader = e.target.closest('th[data-bg], td[data-bg-total]');
+    if (bgHeader) {
+      const bgAbbr = bgHeader.dataset.bg || bgHeader.dataset.bgTotal;
+      filterByCombo(bgAbbr);
+      return;
+    }
+
+    const spHeader = e.target.closest('td[data-species], td[data-species-total]');
+    if (spHeader) {
+      const spAbbr = spHeader.dataset.species || spHeader.dataset.speciesTotal;
+      filterByCombo(spAbbr);
+      return;
     }
   });
+}
+
+function positionPopover(targetEl) {
+  const popover = document.getElementById('comboPopover');
+  if (!popover || !targetEl || !targetEl.getBoundingClientRect) return;
+
+  const popWidth = 310;
+  const popHeight = 220;
+
+  const rect = targetEl.getBoundingClientRect();
+  let x = rect.right + 10;
+  let y = rect.top - 6;
+
+  if (x + popWidth > window.innerWidth - 12) {
+    x = rect.left - popWidth - 10;
+  }
+
+  if (x < 12) x = 12;
+  if (y + popHeight > window.innerHeight - 12) {
+    y = Math.max(12, window.innerHeight - popHeight - 12);
+  }
+  if (y < 12) y = 12;
+
+  popover.style.left = `${Math.round(x)}px`;
+  popover.style.top = `${Math.round(y)}px`;
+  popover.style.display = 'block';
 }
 
 function showPopoverForCell(td, combo) {
@@ -1187,6 +1236,12 @@ function showPopoverForCell(td, combo) {
   if (titleEl) {
     titleEl.textContent = `${spObj.name} ${bgObj.name} (${combo})`;
   }
+
+  const comboSection = document.getElementById('popoverComboSection');
+  if (comboSection) comboSection.style.display = 'block';
+
+  const headerSection = document.getElementById('popoverHeaderSection');
+  if (headerSection) headerSection.style.display = 'none';
 
   const gamesEl = document.getElementById('popoverGames');
   if (gamesEl) gamesEl.textContent = cell.games || 0;
@@ -1234,31 +1289,101 @@ function showPopoverForCell(td, combo) {
     }
   }
 
-  const popWidth = 300;
-  const popHeight = 220;
+  positionPopover(td);
+}
 
-  let x = 100;
-  let y = 100;
+function showPopoverForBackground(el, bgAbbr) {
+  const popover = document.getElementById('comboPopover');
+  if (!popover || !bgAbbr) return;
 
-  if (td && td.getBoundingClientRect) {
-    const tdRect = td.getBoundingClientRect();
-    x = tdRect.right + 10;
-    y = tdRect.top - 6;
+  const bgObj = BG_BY_ABBR[bgAbbr.toLowerCase()] || { name: bgAbbr, category: 'Background' };
+  const colTot = state.matrixData?.columnTotals?.[bgAbbr] || { games: 0, wins: 0, winRate: 0, combosPlayedCount: 0, combosWonCount: 0 };
 
-    if (x + popWidth > window.innerWidth - 12) {
-      x = tdRect.left - popWidth - 10;
+  const titleEl = document.getElementById('popoverTitle');
+  if (titleEl) {
+    titleEl.textContent = `${bgObj.name} (${bgAbbr})`;
+  }
+
+  const comboSection = document.getElementById('popoverComboSection');
+  if (comboSection) comboSection.style.display = 'none';
+
+  const headerSection = document.getElementById('popoverHeaderSection');
+  if (headerSection) headerSection.style.display = 'block';
+
+  const catEl = document.getElementById('popoverHeaderCategory');
+  if (catEl) catEl.textContent = `${bgObj.category || 'Background'} ${bgObj.trunk ? '· Trunk' : '· Legacy'}`;
+
+  const gamesEl = document.getElementById('popoverHeaderGames');
+  if (gamesEl) gamesEl.textContent = colTot.games || 0;
+
+  const winsEl = document.getElementById('popoverHeaderWins');
+  if (winsEl) winsEl.textContent = colTot.wins || 0;
+
+  const rateEl = document.getElementById('popoverHeaderRate');
+  if (rateEl) rateEl.textContent = `${((colTot.winRate || 0) * 100).toFixed(2)}%`;
+
+  const playedEl = document.getElementById('popoverHeaderPlayed');
+  if (playedEl) playedEl.textContent = `${colTot.combosPlayedCount || 0} combos`;
+
+  const wonEl = document.getElementById('popoverHeaderWon');
+  if (wonEl) wonEl.textContent = `${colTot.combosWonCount || 0} combos`;
+
+  const restrContainer = document.getElementById('popoverRestrictions');
+  if (restrContainer) restrContainer.style.display = 'none';
+
+  positionPopover(el);
+}
+
+function showPopoverForSpecies(el, spAbbr) {
+  const popover = document.getElementById('comboPopover');
+  if (!popover || !spAbbr) return;
+
+  const spObj = SPECIES_BY_ABBR[spAbbr.toLowerCase()] || { name: spAbbr };
+  const rowTot = state.matrixData?.rowTotals?.[spAbbr] || { games: 0, wins: 0, winRate: 0, combosPlayedCount: 0, combosWonCount: 0 };
+
+  const titleEl = document.getElementById('popoverTitle');
+  if (titleEl) {
+    titleEl.textContent = `${spObj.name} (${spAbbr})`;
+  }
+
+  const comboSection = document.getElementById('popoverComboSection');
+  if (comboSection) comboSection.style.display = 'none';
+
+  const headerSection = document.getElementById('popoverHeaderSection');
+  if (headerSection) headerSection.style.display = 'block';
+
+  const catEl = document.getElementById('popoverHeaderCategory');
+  if (catEl) catEl.textContent = spObj.trunk ? 'Trunk Species' : 'Legacy Species';
+
+  const gamesEl = document.getElementById('popoverHeaderGames');
+  if (gamesEl) gamesEl.textContent = rowTot.games || 0;
+
+  const winsEl = document.getElementById('popoverHeaderWins');
+  if (winsEl) winsEl.textContent = rowTot.wins || 0;
+
+  const rateEl = document.getElementById('popoverHeaderRate');
+  if (rateEl) rateEl.textContent = `${((rowTot.winRate || 0) * 100).toFixed(2)}%`;
+
+  const playedEl = document.getElementById('popoverHeaderPlayed');
+  if (playedEl) playedEl.textContent = `${rowTot.combosPlayedCount || 0} combos`;
+
+  const wonEl = document.getElementById('popoverHeaderWon');
+  if (wonEl) wonEl.textContent = `${rowTot.combosWonCount || 0} combos`;
+
+  // God Restrictions for species
+  const restrContainer = document.getElementById('popoverRestrictions');
+  const restrText = document.getElementById('popoverRestrictionsText');
+  const restriction = GOD_RESTRICTIONS[spAbbr];
+  if (restrContainer && restrText) {
+    if (restriction) {
+      restrContainer.style.display = 'block';
+      restrText.textContent = restriction;
+    } else {
+      restrContainer.style.display = 'none';
     }
   }
 
-  if (x < 12) x = 12;
-  if (y + popHeight > window.innerHeight - 12) {
-    y = Math.max(12, window.innerHeight - popHeight - 12);
-  }
-  if (y < 12) y = 12;
-
-  popover.style.left = `${Math.round(x)}px`;
-  popover.style.top = `${Math.round(y)}px`;
-  popover.style.display = 'block';
+  positionPopover(el);
 }
 
 function showPopover(event, combo) {

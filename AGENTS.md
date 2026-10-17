@@ -155,15 +155,25 @@ To activate debug logging for troubleshooting directory discovery, sync ingestio
 - **Sort Pills Bar:** An active sort breadcrumb bar displays currently applied sort criteria with individual remove buttons and a "Reset Sort" button.
 - **Tie-Breaking:** Sorting falls back to `end_time DESC` so identical values have deterministic order.
 
-### 8.3 Zero-Lag UI Performance Rules
-- **Atomic DOM Updates:** Functions that render run lists (`renderRecentRuns`, `renderExplorerRuns`) MUST concatenate HTML strings in memory and execute a single `tbody.innerHTML = html` assignment. Never call `appendChild` inside a per-row loop.
-- **Tab Switching (0ms Feel):** Tab switching uses CSS classes (`.tab-content.active { display: block; }`) rather than inline DOM mutation. Runs table rendering is cached via `state.explorerRendered` so switching tabs does not rebuild table DOM nodes.
-- **Layout Containment:** Large scrollable tables (`.matrix-container`, `.games-table-wrapper`) use CSS `contain: layout` to isolate table reflows from the rest of the application layout.
-- **No `transition: all`:** Avoid broad `transition: all` CSS rules on interactive elements (tabs, buttons). Always specify exact properties (e.g. `transition: background-color 0.1s ease, color 0.1s ease`) to prevent continuous layout metric polling during animations.
+### 8.3 Zero-Lag UI Performance & Memory Architecture
+- **Compositor-Level Tab Switching (0ms Delay):** Rather than destroying and reconstructing the layout tree via `display: none` / `display: block` (which forces synchronous reflow and box-tree reconstruction of 2,100+ matrix cells and 90+ sticky headers), inactive tabs use `position: absolute; visibility: hidden; height: 0; overflow: hidden; pointer-events: none;`. Active tabs use `position: relative; visibility: visible; height: auto;`. The browser computes layout once on load and switches tabs instantly (0ms) on the GPU compositor thread without freezing the main thread.
+- **Fixed-Layout Matrix Table:** `table.matrix-table` uses `table-layout: fixed; border-collapse: separate; border-spacing: 0;`. This avoids the expensive O(N*M) two-pass content-measurement algorithm across thousands of table cells and resolves border conflict overhead on sticky headers.
+- **Lightweight Memory Caching & Precomputed Keys:** To prevent high RAM usage and garbage collection stutter when scaling to 10,000+ runs:
+  - Integer timestamps (`_time = Date.parse(end_time)`) are calculated once on fetch. Multi-column sorting compares raw numeric timestamps (`a._time - b._time`), performing ZERO object allocations during sorts.
+  - Lowercase search strings and consolidated search haystacks (`_haystack`) are cached on run objects, enabling fast single-pass native substring searches without runtime lowercasing or multi-field regex loops.
+- **Atomic DOM Updates:** Functions that render run lists (`renderRecentRuns`, `renderExplorerRuns`) concatenate HTML strings in memory and execute a single `tbody.innerHTML = html` assignment.
 
 ### 8.4 Table Layout & Character Dump Accessibility
 - **Column Ordering:** Table columns are structured as `#`, `Combo` (4-letter shortcut code e.g. `MfSh`, full name in hover title), `Morgue` (`[View]` button placed up front so players never need horizontal scrolling), `God`, `XL`, `Score`, `Turns`, `Duration`, `Speed`, `Outcome & Location`, and `Time` (`Oct 17 19:09` compact format at the utter right).
-- **Live Character Dumps:** Active ongoing runs feature a direct `[View Dump]` button on the Overview Live Game Hero Card and a `[⚡ Live Dump]` shortcut in Run Explorer that opens `morgue/<Character>.txt` in the modal.
+- **Live Character Dumps:** Active ongoing runs feature a direct `[View Dump]` button on the Overview Live Game Hero Card that opens `morgue/<Character>.txt` in the modal. Redundant dump buttons in Explorer are omitted for UI clarity.
+
+### 8.5 Matrix Hover Popovers & Header Popovers
+- **Cell vs Header Hover Separation:** Popovers are displayed strictly when hovering valid combo cells (`td[data-combo]`), background column headers (`th[data-bg]`, `td[data-bg-total]`), or species row headers (`td[data-species]`, `td[data-species-total]`).
+- **Immediate Disappearance on Mouse Exit:** Moving cursor off a cell onto table borders, neutral padding, or outside the table container immediately calls `hidePopover()`.
+- **Dedicated Header Popovers:**
+  - Background headers show full name, category, trunk/legacy status, total games, wins, win rate, and combos completed.
+  - Species headers show full name, trunk/legacy status, god restrictions (if any), total games, wins, win rate, and combos completed.
+- **Clean Tooltip Presentation:** Redundant native browser `title` attributes on table cells and headers are omitted so native OS tooltips never obscure custom terminal-themed popovers.
 
 
 
