@@ -121,7 +121,7 @@ header.navbar {
   padding: 0.45rem 0.85rem;
   border-radius: 4px;
   cursor: pointer;
-  transition: background-color 0.1s ease, border-color 0.1s ease, color 0.1s ease;
+  user-select: none;
 }
 
 .nav-tab:hover {
@@ -137,26 +137,14 @@ header.navbar {
   font-weight: 700;
 }
 
-/* Tab Content Switching — Instant 0ms Compositor Switch (Preserves computed layout tree) */
+/* Tab Content Switching — Instant 0ms Zero-Reflow Display */
 .tab-content {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  visibility: hidden;
-  pointer-events: none;
-  opacity: 0;
-  height: 0;
-  overflow: hidden;
+  display: none;
+  contain: content;
 }
 
 .tab-content.active {
-  position: relative;
-  visibility: visible;
-  pointer-events: auto;
-  opacity: 1;
-  height: auto;
-  overflow: visible;
+  display: block;
 }
 
 .nav-actions {

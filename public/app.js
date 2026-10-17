@@ -395,8 +395,12 @@ async function loadActiveRun() {
     }
 
     const active = state.activeRuns[state.selectedActiveRunIndex];
+    const prev = state.activeRun;
+    const isSame = prev && active && prev.name === active.name && prev.turns === active.turns && prev.hp === active.hp && prev.place === active.place && prev.xl === active.xl;
     state.activeRun = active;
-    renderActiveRunDetails(active);
+    if (!isSame) {
+      renderActiveRunDetails(active);
+    }
   } catch (err) {
     console.warn('Could not poll active runs:', err);
   }
@@ -1310,8 +1314,11 @@ function showPopoverForBackground(el, bgAbbr) {
   const headerSection = document.getElementById('popoverHeaderSection');
   if (headerSection) headerSection.style.display = 'block';
 
+  const labelEl = document.getElementById('popoverHeaderTypeLabel');
+  if (labelEl) labelEl.textContent = 'Category';
+
   const catEl = document.getElementById('popoverHeaderCategory');
-  if (catEl) catEl.textContent = `${bgObj.category || 'Background'} ${bgObj.trunk ? '· Trunk' : '· Legacy'}`;
+  if (catEl) catEl.textContent = bgObj.category || 'Background';
 
   const gamesEl = document.getElementById('popoverHeaderGames');
   if (gamesEl) gamesEl.textContent = colTot.games || 0;
@@ -1322,11 +1329,11 @@ function showPopoverForBackground(el, bgAbbr) {
   const rateEl = document.getElementById('popoverHeaderRate');
   if (rateEl) rateEl.textContent = `${((colTot.winRate || 0) * 100).toFixed(2)}%`;
 
-  const playedEl = document.getElementById('popoverHeaderPlayed');
-  if (playedEl) playedEl.textContent = `${colTot.combosPlayedCount || 0} combos`;
-
   const wonEl = document.getElementById('popoverHeaderWon');
-  if (wonEl) wonEl.textContent = `${colTot.combosWonCount || 0} combos`;
+  if (wonEl) wonEl.textContent = colTot.combosWonCount || 0;
+
+  const playedEl = document.getElementById('popoverHeaderPlayed');
+  if (playedEl) playedEl.textContent = colTot.combosPlayedCount || 0;
 
   const restrContainer = document.getElementById('popoverRestrictions');
   if (restrContainer) restrContainer.style.display = 'none';
@@ -1352,8 +1359,11 @@ function showPopoverForSpecies(el, spAbbr) {
   const headerSection = document.getElementById('popoverHeaderSection');
   if (headerSection) headerSection.style.display = 'block';
 
+  const labelEl = document.getElementById('popoverHeaderTypeLabel');
+  if (labelEl) labelEl.textContent = 'Type';
+
   const catEl = document.getElementById('popoverHeaderCategory');
-  if (catEl) catEl.textContent = spObj.trunk ? 'Trunk Species' : 'Legacy Species';
+  if (catEl) catEl.textContent = spObj.trunk ? 'Species' : 'Legacy Species';
 
   const gamesEl = document.getElementById('popoverHeaderGames');
   if (gamesEl) gamesEl.textContent = rowTot.games || 0;
@@ -1364,11 +1374,11 @@ function showPopoverForSpecies(el, spAbbr) {
   const rateEl = document.getElementById('popoverHeaderRate');
   if (rateEl) rateEl.textContent = `${((rowTot.winRate || 0) * 100).toFixed(2)}%`;
 
-  const playedEl = document.getElementById('popoverHeaderPlayed');
-  if (playedEl) playedEl.textContent = `${rowTot.combosPlayedCount || 0} combos`;
-
   const wonEl = document.getElementById('popoverHeaderWon');
-  if (wonEl) wonEl.textContent = `${rowTot.combosWonCount || 0} combos`;
+  if (wonEl) wonEl.textContent = rowTot.combosWonCount || 0;
+
+  const playedEl = document.getElementById('popoverHeaderPlayed');
+  if (playedEl) playedEl.textContent = rowTot.combosPlayedCount || 0;
 
   // God Restrictions for species
   const restrContainer = document.getElementById('popoverRestrictions');

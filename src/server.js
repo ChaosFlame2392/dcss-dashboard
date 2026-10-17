@@ -75,23 +75,6 @@ let isSyncing = false;
 let lastSyncTimestamp = 0;
 const MIN_SYNC_INTERVAL_MS = 3000;
 
-// Automatic background sync every 15 seconds to track active games and new morgues
-const syncInterval = setInterval(() => {
-  if (isSyncing) return;
-  isSyncing = true;
-  try {
-    const res = client.sync();
-    if (res.newGamesCount > 0) {
-      logger.info('DB', `Background sync ingested ${res.newGamesCount} new games.`);
-    }
-  } catch (err) {
-    logger.error('DB', `Background sync error: ${err.message}`);
-  } finally {
-    isSyncing = false;
-  }
-}, 15000);
-syncInterval.unref();
-
 // Helper to sanitize query filters
 function extractFilter(req) {
   const filter = {};

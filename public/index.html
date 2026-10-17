@@ -10,16 +10,16 @@
   <!-- Navigation Header -->
   <header class="navbar">
     <div class="nav-inner">
-      <a href="#" class="brand" onclick="switchTab('overview')">
+      <a href="#" class="brand" onclick="event.preventDefault(); switchTab('overview')">
         <span class="brand-icon">🗡️</span>
         <span>DCSS Stats</span>
       </a>
 
       <nav class="nav-tabs">
-        <button class="nav-tab active" data-tab="overview" onclick="switchTab('overview')">Overview</button>
-        <button class="nav-tab" data-tab="matrix" onclick="switchTab('matrix')">Combo Matrix</button>
-        <button class="nav-tab" data-tab="suggest" onclick="switchTab('suggest')">Recommender</button>
-        <button class="nav-tab" data-tab="runs" onclick="switchTab('runs')">Run Explorer</button>
+        <button type="button" class="nav-tab active" data-tab="overview" onpointerdown="switchTab('overview')" onclick="switchTab('overview')">Overview</button>
+        <button type="button" class="nav-tab" data-tab="matrix" onpointerdown="switchTab('matrix')" onclick="switchTab('matrix')">Combo Matrix</button>
+        <button type="button" class="nav-tab" data-tab="suggest" onpointerdown="switchTab('suggest')" onclick="switchTab('suggest')">Recommender</button>
+        <button type="button" class="nav-tab" data-tab="runs" onpointerdown="switchTab('runs')" onclick="switchTab('runs')">Run Explorer</button>
       </nav>
 
       <div class="nav-actions">
@@ -346,12 +346,12 @@
     <!-- Header (Background / Species) View -->
     <div id="popoverHeaderSection" style="display: none;">
       <div class="popover-stats">
-        <div>Category: <strong id="popoverHeaderCategory">-</strong></div>
+        <div><span id="popoverHeaderTypeLabel">Category</span>: <strong id="popoverHeaderCategory">-</strong></div>
         <div>Total Games: <strong id="popoverHeaderGames">0</strong></div>
         <div>Total Wins: <strong id="popoverHeaderWins">0</strong></div>
         <div>Win Rate: <strong id="popoverHeaderRate">0.00%</strong></div>
-        <div>Combos Played: <strong id="popoverHeaderPlayed">0</strong></div>
         <div>Combos Won: <strong id="popoverHeaderWon">0</strong></div>
+        <div>Combos Played: <strong id="popoverHeaderPlayed">0</strong></div>
       </div>
     </div>
 
