@@ -73,8 +73,11 @@
             <span id="activeRunName">Active Character</span>
             <span style="color: var(--muted-foreground);" id="activeRunCombo"></span>
           </div>
-          <div style="font-weight: 700; color: var(--accent);">
-            📍 <span id="activeRunPlace">Orc:2</span>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="font-weight: 700; color: var(--accent);">
+              📍 <span id="activeRunPlace">Orc:2</span>
+            </div>
+            <button class="btn btn-view-morgue" id="activeRunViewDumpBtn" style="display: none; padding: 0.2rem 0.65rem; font-size: 0.75rem; border-color: var(--success); color: var(--success);" title="View live character dump for running game">View Dump</button>
           </div>
         </div>
 
@@ -180,15 +183,15 @@
           <table class="games-table" id="recentRunsTable">
             <thead>
               <tr>
-                <th>Date / Time</th>
-                <th>Character Combo</th>
+                <th>Combo</th>
+                <th>Morgue</th>
                 <th>God</th>
                 <th>XL</th>
                 <th>Score</th>
                 <th>Turns</th>
                 <th>Duration</th>
                 <th>Outcome</th>
-                <th>Morgue</th>
+                <th style="text-align: right;">Time</th>
               </tr>
             </thead>
             <tbody id="recentRunsBody">
@@ -263,7 +266,7 @@
     <!-- TAB 4: RUN EXPLORER -->
     <div id="tab-runs" class="tab-content">
       <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-        <div style="display: flex; gap: 0.75rem; align-items: center; flex: 1; max-width: 500px;">
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex: 1; max-width: 550px;">
           <input
             type="text"
             id="runsSearchInput"
@@ -273,6 +276,7 @@
             oninput="handleRunsSearchInput()"
           />
           <button class="btn" onclick="clearRunsSearch()">Clear</button>
+          <button class="btn btn-view-morgue" id="runsActiveDumpBtn" style="display: none; padding: 0.35rem 0.65rem; font-size: 0.75rem; border-color: var(--success); color: var(--success); white-space: nowrap;" title="View character dump for active game">Live Dump</button>
         </div>
 
         <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
@@ -291,8 +295,8 @@
           <thead>
             <tr>
               <th class="sortable" onclick="handleSortClick('id', event)" title="Sort by index. Shift+click for multi-sort">#<span class="sort-arrow" id="sortArrow-id"></span></th>
-              <th class="sortable" onclick="handleSortClick('end_time', event)" title="Sort by End Time. Shift+click for multi-sort">End Time<span class="sort-arrow" id="sortArrow-end_time"></span></th>
-              <th class="sortable" onclick="handleSortClick('combo', event)" title="Sort by Combo. Shift+click for multi-sort">Character Combo<span class="sort-arrow" id="sortArrow-combo"></span></th>
+              <th class="sortable" onclick="handleSortClick('combo', event)" title="Sort by Combo. Shift+click for multi-sort">Combo<span class="sort-arrow" id="sortArrow-combo"></span></th>
+              <th>Morgue</th>
               <th class="sortable" onclick="handleSortClick('god', event)" title="Sort by God. Shift+click for multi-sort">God<span class="sort-arrow" id="sortArrow-god"></span></th>
               <th class="sortable" onclick="handleSortClick('xl', event)" title="Sort by Level. Shift+click for multi-sort">XL<span class="sort-arrow" id="sortArrow-xl"></span></th>
               <th class="sortable" onclick="handleSortClick('score', event)" title="Sort by Score. Shift+click for multi-sort">Score<span class="sort-arrow" id="sortArrow-score"></span></th>
@@ -300,7 +304,7 @@
               <th class="sortable" onclick="handleSortClick('duration', event)" title="Sort by Duration. Shift+click for multi-sort">Duration<span class="sort-arrow" id="sortArrow-duration"></span></th>
               <th class="sortable" onclick="handleSortClick('speed', event)" title="Sort by Turn Speed. Shift+click for multi-sort">Speed<span class="sort-arrow" id="sortArrow-speed"></span></th>
               <th class="sortable" onclick="handleSortClick('outcome', event)" title="Sort by Outcome. Shift+click for multi-sort">Outcome &amp; Location<span class="sort-arrow" id="sortArrow-outcome"></span></th>
-              <th>Morgue</th>
+              <th class="sortable" onclick="handleSortClick('end_time', event)" title="Sort by End Time. Shift+click for multi-sort" style="text-align: right;">Time<span class="sort-arrow" id="sortArrow-end_time"></span></th>
             </tr>
           </thead>
           <tbody id="allRunsBody">

@@ -366,6 +366,8 @@ async function loadActiveRun() {
 
     if (state.activeRuns.length === 0) {
       if (banner) banner.style.display = 'none';
+      const explorerDumpBtn = document.getElementById('runsActiveDumpBtn');
+      if (explorerDumpBtn) explorerDumpBtn.style.display = 'none';
       state.activeRun = null;
       return;
     }
@@ -426,6 +428,30 @@ function renderActiveRunDetails(active) {
 
   const placeEl = document.getElementById('activeRunPlace');
   if (placeEl) placeEl.textContent = active.place || 'Dungeon';
+
+  // Live Dump Button in Active Run Banner
+  const dumpFilename = active.morgue_file ? pathBasename(active.morgue_file) : (active.name ? `${active.name}.txt` : null);
+  const dumpBtn = document.getElementById('activeRunViewDumpBtn');
+  if (dumpBtn) {
+    if (dumpFilename) {
+      dumpBtn.style.display = 'inline-block';
+      dumpBtn.dataset.morgue = dumpFilename;
+    } else {
+      dumpBtn.style.display = 'none';
+    }
+  }
+
+  // Live Dump Shortcut Button in Run Explorer
+  const explorerDumpBtn = document.getElementById('runsActiveDumpBtn');
+  if (explorerDumpBtn) {
+    if (dumpFilename) {
+      explorerDumpBtn.style.display = 'inline-block';
+      explorerDumpBtn.dataset.morgue = dumpFilename;
+      explorerDumpBtn.textContent = `⚡ Live Dump (${active.combo || active.name})`;
+    } else {
+      explorerDumpBtn.style.display = 'none';
+    }
+  }
 
   const xlEl = document.getElementById('activeRunXl');
   if (xlEl) xlEl.textContent = active.xl || 1;
@@ -794,7 +820,6 @@ function resetSort() {
 
 const FIELD_LABELS = {
   id: '#',
-  end_time: 'End Time',
   combo: 'Combo',
   god: 'God',
   xl: 'XL',
@@ -803,10 +828,22 @@ const FIELD_LABELS = {
   duration: 'Duration',
   speed: 'Speed',
   outcome: 'Outcome',
+  end_time: 'Time',
 };
 
+function formatShortDateTime(isoString) {
+  if (!isoString) return '-';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '-';
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const day = d.getDate();
+  const hours = String(d.getHours()).padStart(2, '0');
+  const mins = String(d.getMinutes()).padStart(2, '0');
+  return `${month} ${day} ${hours}:${mins}`;
+}
+
 function updateSortHeadersUI() {
-  const fields = ['id', 'end_time', 'combo', 'god', 'xl', 'score', 'turns', 'duration', 'speed', 'outcome'];
+  const fields = ['id', 'combo', 'god', 'xl', 'score', 'turns', 'duration', 'speed', 'outcome', 'end_time'];
   const isMulti = state.sortRules.length > 1;
 
   fields.forEach((f) => {
@@ -868,9 +905,8 @@ function renderRecentRuns() {
   let html = '';
   runs.forEach((run) => {
     const winClass = run.is_win ? ' class="win-row"' : '';
-    const dateStr = run.end_time
-      ? new Date(run.end_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-      : '-';
+    const dateStr = formatShortDateTime(run.end_time);
+    const dateTitle = run.end_time ? new Date(run.end_time).toLocaleString() : '';
 
     const morgueBtn = run.morgue_file
       ? `<button class="btn btn-view-morgue" style="padding: 0.15rem 0.5rem; font-size: 0.75rem;" data-morgue="${escapeHtml(pathBasename(run.morgue_file))}">View</button>`
@@ -878,15 +914,15 @@ function renderRecentRuns() {
 
     html += `
       <tr${winClass}>
-        <td style="font-family: var(--font-mono);">${dateStr}</td>
-        <td><strong>${escapeHtml(run.char_name || run.name)}</strong> <span style="color: var(--muted-foreground);">(${escapeHtml(run.combo || '')})</span></td>
+        <td><strong title="${escapeHtml(run.char_name || run.name || '')}">${escapeHtml(run.combo || run.char_name || '')}</strong></td>
+        <td>${morgueBtn}</td>
         <td style="color: var(--warning);">${escapeHtml(run.god || '-')}</td>
         <td style="font-weight: 700;">${run.xl || 1}</td>
         <td>${(run.score || 0).toLocaleString()}</td>
         <td>${(run.turns || 0).toLocaleString()}</td>
         <td>${escapeHtml(run.duration_formatted || '-')}</td>
         <td>${run.is_win ? '<span class="win-badge">WON</span> ' : ''}${escapeHtml(run.outcome || 'Died')}</td>
-        <td>${morgueBtn}</td>
+        <td style="font-family: var(--font-mono); color: var(--muted-foreground); text-align: right;" title="${escapeHtml(dateTitle)}">${dateStr}</td>
       </tr>
     `;
   });
@@ -911,9 +947,8 @@ function renderExplorerRuns() {
   page.forEach((run, index) => {
     const winClass = run.is_win ? ' class="win-row"' : '';
     const rowNum = state.runsOffset + index + 1;
-    const dateStr = run.end_time
-      ? new Date(run.end_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-      : '-';
+    const dateStr = formatShortDateTime(run.end_time);
+    const dateTitle = run.end_time ? new Date(run.end_time).toLocaleString() : '';
 
     const morgueBtn = run.morgue_file
       ? `<button class="btn btn-view-morgue" style="padding: 0.15rem 0.5rem; font-size: 0.75rem;" data-morgue="${escapeHtml(pathBasename(run.morgue_file))}">View</button>`
@@ -922,8 +957,8 @@ function renderExplorerRuns() {
     html += `
       <tr${winClass}>
         <td style="color: var(--muted-foreground);">${rowNum}</td>
-        <td>${dateStr}</td>
-        <td><strong>${escapeHtml(run.char_name || run.name)}</strong> <span style="color: var(--muted-foreground);">(${escapeHtml(run.combo || '')})</span></td>
+        <td><strong title="${escapeHtml(run.char_name || run.name || '')}">${escapeHtml(run.combo || run.char_name || '')}</strong></td>
+        <td>${morgueBtn}</td>
         <td style="color: var(--warning);">${escapeHtml(run.god || '-')}</td>
         <td style="font-weight: 700;">${run.xl || 1}</td>
         <td>${(run.score || 0).toLocaleString()}</td>
@@ -931,7 +966,7 @@ function renderExplorerRuns() {
         <td>${escapeHtml(run.duration_formatted || '-')}</td>
         <td>${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
         <td>${run.is_win ? '<span class="win-badge">WON</span> ' : ''}${escapeHtml(run.outcome || 'Died')}</td>
-        <td>${morgueBtn}</td>
+        <td style="font-family: var(--font-mono); color: var(--muted-foreground); text-align: right;" title="${escapeHtml(dateTitle)}">${dateStr}</td>
       </tr>
     `;
   });
@@ -1395,8 +1430,8 @@ async function viewMorgue(filename) {
 
   if (!modal || !title || !body) return;
 
-  title.textContent = filename;
-  body.textContent = 'Loading morgue file from disk...';
+  title.textContent = filename.startsWith('morgue-') ? `Morgue — ${filename}` : `Live Character Dump — ${filename}`;
+  body.textContent = 'Loading file from disk...';
   modal.style.display = 'flex';
 
   try {

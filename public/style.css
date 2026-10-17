@@ -858,6 +858,26 @@ table.games-table td {
   border-bottom: 1px solid var(--surface-muted);
 }
 
+table.games-table th:last-child,
+table.games-table td:last-child {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.btn-view-morgue {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--link);
+  border-color: var(--border);
+  cursor: pointer;
+}
+
+.btn-view-morgue:hover {
+  background-color: var(--surface-emphasis);
+  border-color: var(--link);
+  color: #fff;
+}
+
 table.games-table tr:hover {
   background-color: var(--surface-hover);
 }

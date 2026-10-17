@@ -161,4 +161,9 @@ To activate debug logging for troubleshooting directory discovery, sync ingestio
 - **Layout Containment:** Large scrollable tables (`.matrix-container`, `.games-table-wrapper`) use CSS `contain: layout` to isolate table reflows from the rest of the application layout.
 - **No `transition: all`:** Avoid broad `transition: all` CSS rules on interactive elements (tabs, buttons). Always specify exact properties (e.g. `transition: background-color 0.1s ease, color 0.1s ease`) to prevent continuous layout metric polling during animations.
 
+### 8.4 Table Layout & Character Dump Accessibility
+- **Column Ordering:** Table columns are structured as `#`, `Combo` (4-letter shortcut code e.g. `MfSh`, full name in hover title), `Morgue` (`[View]` button placed up front so players never need horizontal scrolling), `God`, `XL`, `Score`, `Turns`, `Duration`, `Speed`, `Outcome & Location`, and `Time` (`Oct 17 19:09` compact format at the utter right).
+- **Live Character Dumps:** Active ongoing runs feature a direct `[View Dump]` button on the Overview Live Game Hero Card and a `[⚡ Live Dump]` shortcut in Run Explorer that opens `morgue/<Character>.txt` in the modal.
+
+
 
