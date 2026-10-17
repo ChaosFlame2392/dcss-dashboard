@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Local SQLite databases & journals (data privacy & safety)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+test_*.db*
+
+# OS & Editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Logs & Environment
+*.log
+npm-debug.log*
+.env
+.env.*
+.system_generated/

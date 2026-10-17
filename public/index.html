@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DCSS Stats & Run Recommender</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Navigation Header -->
+  <header class="navbar">
+    <div class="nav-inner">
+      <a href="#" class="brand" onclick="switchTab('overview')">
+        <span class="brand-icon">🗡️</span>
+        <span>DCSS Stats</span>
+      </a>
+
+      <nav class="nav-tabs">
+        <button class="nav-tab active" data-tab="overview" onclick="switchTab('overview')">Overview</button>
+        <button class="nav-tab" data-tab="matrix" onclick="switchTab('matrix')">Combo Matrix</button>
+        <button class="nav-tab" data-tab="suggest" onclick="switchTab('suggest')">Recommender</button>
+        <button class="nav-tab" data-tab="runs" onclick="switchTab('runs')">Run Explorer</button>
+      </nav>
+
+      <div class="nav-actions">
+        <button class="btn" onclick="triggerSync()" title="Synchronize local DCSS files">
+          🔄 <span id="syncBtnText">Sync</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Filter Bar (Global across tabs) -->
+    <section class="filter-bar">
+      <div class="date-presets">
+        <button class="date-preset-btn active" data-range="all" onclick="setDateRange('all')">All Time</button>
+        <button class="date-preset-btn" data-range="today" onclick="setDateRange('today')">Today</button>
+        <button class="date-preset-btn" data-range="yesterday" onclick="setDateRange('yesterday')">Yesterday</button>
+        <button class="date-preset-btn" data-range="7d" onclick="setDateRange('7d')">Last 7 Days</button>
+        <button class="date-preset-btn" data-range="30d" onclick="setDateRange('30d')">Last 30 Days</button>
+        <button class="date-preset-btn" data-range="custom" onclick="showCustomDates()">Custom</button>
+      </div>
+
+      <div class="filter-controls-group">
+        <div id="customDateInputs" class="custom-date-inputs" style="display: none;">
+          <input type="date" id="dateFrom" class="date-input" />
+          <span style="color: var(--muted-foreground);">to</span>
+          <input type="date" id="dateTo" class="date-input" />
+          <button class="btn btn-primary" onclick="applyCustomDates()">Apply</button>
+        </div>
+
+        <!-- Dynamic Version Dropdown -->
+        <div style="display: flex; align-items: center; gap: 0.4rem;">
+          <label for="versionSelect" style="color: var(--muted-foreground); font-size: 0.8rem;">Version:</label>
+          <select id="versionSelect" class="date-input" onchange="handleVersionChange()">
+            <option value="all">All Versions</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 1: OVERVIEW & PROFILE -->
+    <div id="tab-overview" class="tab-content">
+      <!-- Active Ongoing Run Hero Card (Visible when game is running) -->
+      <section id="activeRunBanner" class="active-game-banner" style="display: none;">
+        <!-- Character Selector Tabs (Visible when activeRuns.length > 1) -->
+        <div id="activeRunsTabs" class="active-runs-selector" style="display: none;"></div>
+
+        <div class="active-game-header">
+          <div class="active-game-title">
+            <span class="badge-active">LIVE GAME</span>
+            <span id="activeRunName">Active Character</span>
+            <span style="color: var(--muted-foreground);" id="activeRunCombo"></span>
+          </div>
+          <div style="font-weight: 700; color: var(--accent);">
+            📍 <span id="activeRunPlace">Orc:2</span>
+          </div>
+        </div>
+
+        <div class="active-stats-grid">
+          <div class="active-stat-box">
+            <div class="active-stat-label">Level</div>
+            <div class="active-stat-value">XL <span id="activeRunXl">16</span></div>
+          </div>
+          <div class="active-stat-box">
+            <div class="active-stat-label">Health</div>
+            <div class="active-stat-value" style="color: var(--success);"><span id="activeRunHp">126</span>/<span id="activeRunMaxHp">126</span> HP</div>
+          </div>
+          <div class="active-stat-box">
+            <div class="active-stat-label">Defenses</div>
+            <div class="active-stat-value"><span id="activeRunAc">16</span> AC · <span id="activeRunEv">17</span> EV · <span id="activeRunSh">17</span> SH</div>
+          </div>
+          <div class="active-stat-box">
+            <div class="active-stat-label">Deity</div>
+            <div class="active-stat-value" style="color: var(--warning);"><span id="activeRunGod">Makhleb</span> <span id="activeRunPiety">★★★★★★</span></div>
+          </div>
+          <div class="active-stat-box">
+            <div class="active-stat-label">Turns & Time</div>
+            <div class="active-stat-value"><span id="activeRunTurns">27,530</span> (<span id="activeRunTime">02:35:46</span>)</div>
+          </div>
+          <div class="active-stat-box">
+            <div class="active-stat-label">Speed</div>
+            <div class="active-stat-value"><span id="activeRunSpeed">2.95</span> turns/sec</div>
+          </div>
+        </div>
+      </section>
+      <!-- Player Header Banner -->
+      <section class="profile-header">
+        <div class="player-info">
+          <h1 id="profilePlayerName">Player</h1>
+          <p id="profileSubtext">Dungeon Crawl Stone Soup Player Profile</p>
+        </div>
+        <div>
+          <div class="winrate-banner">
+            <span class="wins" id="profileWins">0W</span>
+            <span class="games" id="profileGames">0G</span>
+            <span class="rate" id="profileRate">0.00% WR</span>
+          </div>
+          <div style="font-size: 0.75rem; color: var(--muted-foreground); text-align: right; margin-top: 0.25rem;" id="profileFilterContext">
+            Across selected period
+          </div>
+        </div>
+      </section>
+
+      <!-- 4 Stats Cards Grid -->
+      <section class="stats-grid">
+        <!-- Score Card -->
+        <div class="stat-card">
+          <div class="stat-card-title">Score Metrics <span>🏆</span></div>
+          <div class="stat-list">
+            <div class="stat-row"><span class="label">Best Score</span><span class="val" id="statBestScore">0</span></div>
+            <div class="stat-row"><span class="label">Average Score</span><span class="val" id="statAvgScore">0</span></div>
+            <div class="stat-row"><span class="label">Median Score</span><span class="val" id="statMedianScore">0</span></div>
+            <div class="stat-row"><span class="label">Total Score</span><span class="val" id="statTotalScore">0</span></div>
+          </div>
+        </div>
+
+        <!-- Screentime Card -->
+        <div class="stat-card">
+          <div class="stat-card-title">Playtime & Duration <span>⏱️</span></div>
+          <div class="stat-list">
+            <div class="stat-row"><span class="label">Total Playtime</span><span class="val" id="statTotalTime">00:00:00</span></div>
+            <div class="stat-row"><span class="label">Average Run Length</span><span class="val" id="statAvgDuration">00:00:00</span></div>
+            <div class="stat-row"><span class="label">Fastest Win</span><span class="val" id="statFastestWin">N/A</span></div>
+            <div class="stat-row"><span class="label">Shortest Win</span><span class="val" id="statShortestWin">N/A</span></div>
+          </div>
+        </div>
+
+        <!-- Turns & Speed Card -->
+        <div class="stat-card">
+          <div class="stat-card-title">Turn Statistics <span>⚡</span></div>
+          <div class="stat-list">
+            <div class="stat-row"><span class="label">Total Turns</span><span class="val" id="statTotalTurns">0</span></div>
+            <div class="stat-row"><span class="label">Average Turns / Run</span><span class="val" id="statAvgTurns">0</span></div>
+            <div class="stat-row"><span class="label">Average Turn Speed</span><span class="val" id="statAvgTurnSpeed">0.00 turns/sec</span></div>
+            <div class="stat-row"><span class="label">Average Turn Duration</span><span class="val" id="statTurnDuration">0.00 sec/turn</span></div>
+          </div>
+        </div>
+
+        <!-- Runes & Milestones Card -->
+        <div class="stat-card">
+          <div class="stat-card-title">Runes & Milestones <span>💎</span></div>
+          <div class="stat-list">
+            <div class="stat-row"><span class="label">Runes Extracted</span><span class="val" style="color: var(--warning);" id="statRunesWon">0</span></div>
+            <div class="stat-row"><span class="label">Max Runes in 1 Run</span><span class="val" id="statMaxRunes">0</span></div>
+            <div class="stat-row"><span class="label">Combos Completed</span><span class="val" id="statCombosWon">0 of 745</span></div>
+            <div class="stat-row"><span class="label">Distinct Combos Played</span><span class="val" id="statCombosPlayed">0</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recent Runs Section -->
+      <section class="stat-card">
+        <div class="stat-card-title" style="margin-bottom: 0.75rem;">
+          <span>Recent Runs</span>
+          <button class="btn" onclick="switchTab('runs')" style="font-size: 0.75rem;">View All Runs →</button>
+        </div>
+        <div class="games-table-wrapper">
+          <table class="games-table" id="recentRunsTable">
+            <thead>
+              <tr>
+                <th>Date / Time</th>
+                <th>Character Combo</th>
+                <th>God</th>
+                <th>XL</th>
+                <th>Score</th>
+                <th>Turns</th>
+                <th>Duration</th>
+                <th>Outcome</th>
+                <th>Morgue</th>
+              </tr>
+            </thead>
+            <tbody id="recentRunsBody">
+              <!-- Populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- TAB 2: SPECIES x BACKGROUND MATRIX -->
+    <div id="tab-matrix" class="tab-content" style="display: none;">
+      <section class="matrix-section">
+        <div class="matrix-header">
+          <div>
+            <h2 style="font-size: 1.15rem; font-weight: 700; color: var(--page-heading);">Species × Background Matrix</h2>
+            <p style="font-size: 0.8rem; color: var(--muted-foreground);">
+              Hover any cell for god breakdown and stats. Click any cell to view all runs in Run Explorer.
+            </p>
+          </div>
+
+          <div class="matrix-controls">
+            <label for="matrixMetricSelect" style="font-size: 0.8rem; color: var(--muted-foreground);">Metric:</label>
+            <select id="matrixMetricSelect" class="date-input" onchange="renderMatrix()">
+              <option value="games">Games Played</option>
+              <option value="wins">Wins</option>
+              <option value="winRate">Win Rate %</option>
+              <option value="maxXl">Highest XL</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="matrix-container" id="matrixContainer">
+          <!-- Dynamically populated matrix table -->
+        </div>
+      </section>
+    </div>
+
+    <!-- TAB 3: RUN RECOMMENDER -->
+    <div id="tab-suggest" class="tab-content" style="display: none;">
+      <!-- Combo Roll Section -->
+      <section class="roll-section">
+        <div class="roll-header">
+          <div class="roll-title">
+            <span>🎲</span>
+            <span>Combo Roller</span>
+          </div>
+          <div class="roll-buttons">
+            <button class="btn btn-primary" id="rollAnyBtn" onclick="rollCombo('any')" title="Roll any valid Crawl combination">
+              Roll Any
+            </button>
+            <button class="btn btn-accent" id="rollRecBtn" onclick="rollCombo('recommended')" title="Roll official DCSS in-game recommended combo">
+              Roll Recommended
+            </button>
+            <button class="btn" id="rollUnwonBtn" onclick="rollCombo('unwon')" title="Roll a combo you played but haven't won yet">
+              Roll Unwon
+            </button>
+            <button class="btn" id="rollUnplayedBtn" onclick="rollCombo('unplayed')" title="Roll a valid combination you have never played">
+              Roll Unplayed
+            </button>
+          </div>
+        </div>
+
+        <div class="roll-display" id="rollDisplay">
+          <div class="roll-placeholder">
+            Click a button above or press Space to roll a character combination.
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- TAB 4: RUN EXPLORER -->
+    <div id="tab-runs" class="tab-content" style="display: none;">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex: 1; max-width: 500px;">
+          <input
+            type="text"
+            id="runsSearchInput"
+            class="date-input"
+            placeholder="Live search by combo, killer, place, god, outcome... (0ms lag)"
+            style="width: 100%;"
+            oninput="handleRunsSearchInput()"
+          />
+          <button class="btn" onclick="clearRunsSearch()">Clear</button>
+        </div>
+
+        <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+          <label style="font-size: 0.8rem; color: var(--foreground); cursor: pointer;" title="Show only winning games">
+            <input type="checkbox" id="runsWinsOnly" onchange="applyRunsFilter()" />
+            Wins Only
+          </label>
+          <label style="font-size: 0.8rem; color: var(--foreground); cursor: pointer;" title="Hide D:1 / early game deaths under 500 turns">
+            <input type="checkbox" id="runsMinTurns" onchange="applyRunsFilter()" />
+            Exclude D:1 splats (&lt; 500 turns)
+          </label>
+        </div>
+      </div>
+
+      <!-- Active Multi-Sort Bar -->
+      <div id="activeSortDisplay" class="sort-pills-bar" style="display: none;"></div>
+
+      <div class="games-table-wrapper">
+        <table class="games-table">
+          <thead>
+            <tr>
+              <th class="sortable" onclick="handleSortClick('id', event)" title="Sort by index. Shift+click for multi-sort">#<span class="sort-arrow" id="sortArrow-id"></span></th>
+              <th class="sortable" onclick="handleSortClick('end_time', event)" title="Sort by End Time. Shift+click for multi-sort">End Time<span class="sort-arrow" id="sortArrow-end_time"></span></th>
+              <th class="sortable" onclick="handleSortClick('combo', event)" title="Sort by Combo. Shift+click for multi-sort">Character Combo<span class="sort-arrow" id="sortArrow-combo"></span></th>
+              <th class="sortable" onclick="handleSortClick('god', event)" title="Sort by God. Shift+click for multi-sort">God<span class="sort-arrow" id="sortArrow-god"></span></th>
+              <th class="sortable" onclick="handleSortClick('xl', event)" title="Sort by Level. Shift+click for multi-sort">XL<span class="sort-arrow" id="sortArrow-xl"></span></th>
+              <th class="sortable" onclick="handleSortClick('score', event)" title="Sort by Score. Shift+click for multi-sort">Score<span class="sort-arrow" id="sortArrow-score"></span></th>
+              <th class="sortable" onclick="handleSortClick('turns', event)" title="Sort by Turns. Shift+click for multi-sort">Turns<span class="sort-arrow" id="sortArrow-turns"></span></th>
+              <th class="sortable" onclick="handleSortClick('duration', event)" title="Sort by Duration. Shift+click for multi-sort">Duration<span class="sort-arrow" id="sortArrow-duration"></span></th>
+              <th class="sortable" onclick="handleSortClick('speed', event)" title="Sort by Turn Speed. Shift+click for multi-sort">Speed<span class="sort-arrow" id="sortArrow-speed"></span></th>
+              <th class="sortable" onclick="handleSortClick('outcome', event)" title="Sort by Outcome. Shift+click for multi-sort">Outcome &amp; Location<span class="sort-arrow" id="sortArrow-outcome"></span></th>
+              <th>Morgue</th>
+            </tr>
+          </thead>
+          <tbody id="allRunsBody">
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+        <span style="font-size: 0.8rem; color: var(--muted-foreground);" id="runsPaginationInfo">
+          Showing 1 to 50 of 0 runs
+        </span>
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn" id="runsPrevBtn" onclick="prevRunsPage()" disabled>Previous</button>
+          <button class="btn" id="runsNextBtn" onclick="nextRunsPage()">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Popover for Matrix Cell Hover (Fixed Viewport Positioning) -->
+  <div id="comboPopover" class="combo-popover" style="display: none;">
+    <div class="popover-title" id="popoverTitle">Demigod Hunter</div>
+    <div class="popover-stats">
+      <div>Games: <strong id="popoverGames">0</strong></div>
+      <div>Wins: <strong id="popoverWins">0</strong></div>
+      <div>Win Rate: <strong id="popoverRate">0.00%</strong></div>
+      <div>Max XL: <strong id="popoverXl">0</strong></div>
+      <div>Best Score: <strong id="popoverScore">0</strong></div>
+      <div>Max Runes: <strong id="popoverRunes">0</strong></div>
+    </div>
+    <div class="popover-gods">
+      <div style="font-weight: 700; margin-bottom: 0.25rem;">Deities Worshipped:</div>
+      <div id="popoverGodsList">None</div>
+    </div>
+    <div id="popoverRestrictions" class="popover-restrictions" style="display: none;">
+      <div style="font-weight: 700; margin-bottom: 0.25rem; color: var(--danger);">God Restrictions:</div>
+      <div id="popoverRestrictionsText" style="color: var(--muted-foreground);">None</div>
+    </div>
+  </div>
+
+  <!-- Modal for Raw Morgue Text View -->
+  <div id="morgueModal" class="modal-overlay" style="display: none;" onclick="closeMorgueModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 id="morgueModalTitle" style="font-size: 0.95rem; font-weight: 700; color: var(--page-heading);">morgue-file.txt</h3>
+        <button class="btn" onclick="closeMorgueModal()">✕ Close</button>
+      </div>
+      <div class="modal-body" id="morgueModalBody">Loading morgue...</div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
