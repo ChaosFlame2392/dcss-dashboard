@@ -110,6 +110,30 @@ function buildWhereClause(filter = {}) {
     params.push(filter.is_win ? 1 : 0);
   }
 
+  // Min XL
+  if (filter.min_xl !== undefined && filter.min_xl !== null && filter.min_xl !== '') {
+    conditions.push('xl >= ?');
+    params.push(parseInt(filter.min_xl, 10));
+  }
+
+  // Max XL
+  if (filter.max_xl !== undefined && filter.max_xl !== null && filter.max_xl !== '') {
+    conditions.push('xl <= ?');
+    params.push(parseInt(filter.max_xl, 10));
+  }
+
+  // Min Runes
+  if (filter.min_runes !== undefined && filter.min_runes !== null && filter.min_runes !== '') {
+    conditions.push('runes_count >= ?');
+    params.push(parseInt(filter.min_runes, 10));
+  }
+
+  // Place / Branch
+  if (filter.place) {
+    conditions.push('LOWER(place) LIKE ?');
+    params.push(`%${filter.place.toLowerCase()}%`);
+  }
+
   // Game Type (normal, sprint, hints)
   if (filter.game_type) {
     conditions.push('game_type = ?');
