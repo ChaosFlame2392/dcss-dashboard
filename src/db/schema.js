@@ -3,6 +3,14 @@
  * Utilizes Node.js built-in `node:sqlite` for high performance, zero-dependency operations.
  */
 
+// Suppress Node.js built-in SQLite ExperimentalWarning
+const origEmitWarning = process.emitWarning;
+process.emitWarning = (warning, ...args) => {
+  if (typeof warning === 'string' && warning.includes('SQLite')) return;
+  if (warning && warning.message && warning.message.includes('SQLite')) return;
+  return origEmitWarning.call(process, warning, ...args);
+};
+
 const { DatabaseSync } = require('node:sqlite');
 const path = require('node:path');
 const fs = require('node:fs');
