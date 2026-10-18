@@ -3,6 +3,14 @@
  * Serves the modern interactive dashboard UI and REST APIs.
  */
 
+// Suppress Node.js built-in SQLite ExperimentalWarning
+const origEmitWarning = process.emitWarning;
+process.emitWarning = (warning, ...args) => {
+  if (typeof warning === 'string' && warning.includes('SQLite')) return;
+  if (warning && warning.message && warning.message.includes('SQLite')) return;
+  return origEmitWarning.call(process, warning, ...args);
+};
+
 const express = require('express');
 const path = require('node:path');
 const fs = require('node:fs');
