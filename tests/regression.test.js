@@ -9,9 +9,10 @@ const assert = require('node:assert');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
+const { DatabaseSync } = require('node:sqlite');
 
 const { parseXlogLine } = require('../src/db/logfileParser');
-const { parseActiveDump, parseFinishedMorgue, isFinishedMorgue } = require('../src/db/morgueParser');
+const { parseActiveDump, parseFinishedMorgue, isFinishedMorgue, parseTimeDistribution } = require('../src/db/morgueParser');
 const {
   SPECIES,
   BACKGROUNDS,
@@ -26,9 +27,13 @@ const {
   isValidCombo,
   resolveSpecies,
   resolveBackground,
+  parseDcssVersion,
+  compareVersions,
+  matchesVersionFilter,
 } = require('../src/db/constants');
 const { getDcssDirs, getConfigDcssDir } = require('../src/db/sync');
 const { createDcssDb } = require('../src/db');
+const { migrateSchema } = require('../src/db/schema');
 
 describe('DCSS Regression Suite — Logfile Parser', () => {
   it('correctly parses standard monster death xlog line', () => {
@@ -531,5 +536,464 @@ describe('DCSS Regression Suite — Multi-Column Sorting', () => {
     assert.strictEqual(sorted[3].char_name, 'Fast Low XL');
   });
 });
+
+describe('DCSS Regression Suite — Semantic Versioning Engine', () => {
+  it('correctly parses release strings (0.30.2, 0.34.1, 0.32)', () => {
+    const v30 = parseDcssVersion('0.30.2');
+    assert.strictEqual(v30.major, 0);
+    assert.strictEqual(v30.minor, 30);
+    assert.strictEqual(v30.patch, 2);
+    assert.strictEqual(v30.prerelease, null);
+    assert.strictEqual(v30.raw, '0.30.2');
+
+    const v34 = parseDcssVersion('0.34.1');
+    assert.strictEqual(v34.major, 0);
+    assert.strictEqual(v34.minor, 34);
+    assert.strictEqual(v34.patch, 1);
+    assert.strictEqual(v34.prerelease, null);
+    assert.strictEqual(v34.raw, '0.34.1');
+
+    const v32 = parseDcssVersion('0.32');
+    assert.strictEqual(v32.major, 0);
+    assert.strictEqual(v32.minor, 32);
+    assert.strictEqual(v32.patch, 0);
+    assert.strictEqual(v32.prerelease, null);
+    assert.strictEqual(v32.raw, '0.32');
+
+    const vWithPrefix = parseDcssVersion('v0.34.1');
+    assert.strictEqual(vWithPrefix.major, 0);
+    assert.strictEqual(vWithPrefix.minor, 34);
+    assert.strictEqual(vWithPrefix.patch, 1);
+  });
+
+  it('correctly parses pre-releases and git trunk commit hashes', () => {
+    const vPre = parseDcssVersion('0.35-a0');
+    assert.strictEqual(vPre.major, 0);
+    assert.strictEqual(vPre.minor, 35);
+    assert.strictEqual(vPre.patch, 0);
+    assert.strictEqual(vPre.prerelease, 'a0');
+    assert.strictEqual(vPre.raw, '0.35-a0');
+
+    const vTrunkCommit = parseDcssVersion('0.35-a0-1308-g77a9b5a25e');
+    assert.strictEqual(vTrunkCommit.major, 0);
+    assert.strictEqual(vTrunkCommit.minor, 35);
+    assert.strictEqual(vTrunkCommit.patch, 0);
+    assert.strictEqual(vTrunkCommit.prerelease, 'a0-1308-g77a9b5a25e');
+    assert.strictEqual(vTrunkCommit.raw, '0.35-a0-1308-g77a9b5a25e');
+  });
+
+  it('correctly parses version aliases and empty/invalid strings', () => {
+    const vTrunk = parseDcssVersion('trunk');
+    assert.strictEqual(vTrunk.major, 0);
+    assert.strictEqual(vTrunk.minor, 35);
+    assert.strictEqual(vTrunk.patch, 0);
+    assert.strictEqual(vTrunk.prerelease, 'a0');
+    assert.strictEqual(vTrunk.raw, 'trunk');
+
+    const vStable = parseDcssVersion('stable');
+    assert.strictEqual(vStable.major, 0);
+    assert.strictEqual(vStable.minor, 34);
+    assert.strictEqual(vStable.patch, 0);
+    assert.strictEqual(vStable.prerelease, null);
+    assert.strictEqual(vStable.raw, 'stable');
+
+    const vEmpty = parseDcssVersion('');
+    assert.strictEqual(vEmpty.major, 0);
+    assert.strictEqual(vEmpty.minor, 0);
+    assert.strictEqual(vEmpty.patch, 0);
+    assert.strictEqual(vEmpty.prerelease, null);
+
+    const vNull = parseDcssVersion(null);
+    assert.strictEqual(vNull.major, 0);
+    assert.strictEqual(vNull.minor, 0);
+  });
+
+  it('compares versions semantically via compareVersions', () => {
+    assert(compareVersions('0.35-a0', '0.34.1') > 0, '0.35-a0 must be greater than 0.34.1');
+    assert(compareVersions('0.34.1', '0.30.2') > 0, '0.34.1 must be greater than 0.30.2');
+    assert(compareVersions('0.30.2', '0.34.1') < 0, '0.30.2 must be less than 0.34.1');
+    assert.strictEqual(compareVersions('0.34.1', '0.34.1'), 0, 'Identical versions must return 0');
+
+    assert(compareVersions('0.35.1', '0.35-a0') > 0, '0.35.1 patch must be greater than 0.35-a0');
+    assert(compareVersions('0.35-a0', '0.35.1') < 0, '0.35-a0 must be less than 0.35.1');
+
+    // Pre-release comparisons
+    assert(compareVersions('0.35-a0-100', '0.35-a0-200') < 0);
+    assert(compareVersions('0.35-b1', '0.35-a0') > 0);
+
+    // Support parsed object inputs
+    const parsed1 = parseDcssVersion('0.35-a0');
+    const parsed2 = parseDcssVersion('0.34.1');
+    assert(compareVersions(parsed1, parsed2) > 0, 'compareVersions must handle parsed version objects');
+  });
+
+  it('evaluates version filter expressions via matchesVersionFilter', () => {
+    // Operators >= 0.35
+    assert.strictEqual(matchesVersionFilter('0.35-a0', '>= 0.35'), true);
+    assert.strictEqual(matchesVersionFilter('0.35.0', '>= 0.35'), true);
+    assert.strictEqual(matchesVersionFilter('0.35.1', '>= 0.35'), true);
+    assert.strictEqual(matchesVersionFilter('0.36.0', '>= 0.35'), true);
+    assert.strictEqual(matchesVersionFilter('0.34.1', '>= 0.35'), false);
+    assert.strictEqual(matchesVersionFilter('0.30.2', '>= 0.35'), false);
+
+    // Operators <= 0.34
+    assert.strictEqual(matchesVersionFilter('0.34.1', '<= 0.34'), true);
+    assert.strictEqual(matchesVersionFilter('0.34.0', '<= 0.34'), true);
+    assert.strictEqual(matchesVersionFilter('0.32', '<= 0.34'), true);
+    assert.strictEqual(matchesVersionFilter('0.30.2', '<= 0.34'), true);
+    assert.strictEqual(matchesVersionFilter('0.35-a0', '<= 0.34'), false);
+    assert.strictEqual(matchesVersionFilter('0.35.0', '<= 0.34'), false);
+
+    // Operators > 0.30
+    assert.strictEqual(matchesVersionFilter('0.34.1', '> 0.30'), true);
+    assert.strictEqual(matchesVersionFilter('0.32', '> 0.30'), true);
+    assert.strictEqual(matchesVersionFilter('0.30.2', '> 0.30'), false);
+    assert.strictEqual(matchesVersionFilter('0.29.0', '> 0.30'), false);
+
+    // Operators < 0.35
+    assert.strictEqual(matchesVersionFilter('0.34.1', '< 0.35'), true);
+    assert.strictEqual(matchesVersionFilter('0.32', '< 0.35'), true);
+    assert.strictEqual(matchesVersionFilter('0.30.2', '< 0.35'), true);
+    assert.strictEqual(matchesVersionFilter('0.35-a0', '< 0.35'), false);
+    assert.strictEqual(matchesVersionFilter('0.35.0', '< 0.35'), false);
+
+    // Minor release matching e.g. 0.34 matches any 0.34.x
+    assert.strictEqual(matchesVersionFilter('0.34.1', '0.34'), true);
+    assert.strictEqual(matchesVersionFilter('0.34.0', '0.34'), true);
+    assert.strictEqual(matchesVersionFilter('0.34', '0.34'), true);
+    assert.strictEqual(matchesVersionFilter('0.35-a0', '0.34'), false);
+    assert.strictEqual(matchesVersionFilter('0.30.2', '0.34'), false);
+
+    // Exact versions
+    assert.strictEqual(matchesVersionFilter('0.34.1', '0.34.1'), true);
+    assert.strictEqual(matchesVersionFilter('0.34.0', '0.34.1'), false);
+    assert.strictEqual(matchesVersionFilter('0.35-a0', '0.35-a0'), true);
+
+    // Aliases
+    assert.strictEqual(matchesVersionFilter('0.35-a0', 'trunk'), true);
+    assert.strictEqual(matchesVersionFilter('0.34.1', 'trunk'), false);
+    assert.strictEqual(matchesVersionFilter('0.34.1', 'stable'), true);
+    assert.strictEqual(matchesVersionFilter('0.35-a0', 'stable'), false);
+
+    // Universal / empty
+    assert.strictEqual(matchesVersionFilter('0.34.1', 'all'), true);
+    assert.strictEqual(matchesVersionFilter('0.35-a0', 'all'), true);
+    assert.strictEqual(matchesVersionFilter('0.34.1', ''), true);
+    assert.strictEqual(matchesVersionFilter('0.34.1', null), true);
+  });
+});
+
+describe('DCSS Regression Suite — DecaAut Time Distribution Parser', () => {
+  const trunkMorgueSnippet = `
+Dungeon Crawl Stone Soup version 0.35-a0 character file.
+
+ChaosFlame the Wanderer (Gargoyle Fighter)
+Turns: 8500, Time: 00:45:20
+
+Health: 85/85      AC: 20    Str: 18    XL:     10
+Gold:   420        EV: 12    Int: 14    God:    Okawaru
+
+Table legend: (Time is in decaauts)
+ A = Elapsed time spent in this place.
+ B = Non-inter-level travel time spent in this place.
+ C = Inter-level travel time spent in this place.
+ D = Time resting spent in this place.
+ E = Time spent auto-exploring this place.
+ F = Levels seen in this place.
+ G = Mean time per level.
+                   A        B        C        D        E      F       G
+               +--------+--------+--------+--------+--------+-----+--------+
+         Total |   7136 |   6658 |    478 |    495 |   4924 |   7 | 1019.4 |
+       Dungeon |   7136 |   6658 |    478 |    495 |   4924 |   7 | 1019.4 |
+               +--------+--------+--------+--------+--------+-----+--------+
+
+Top non-repeatable levels by time:
+     D:6: 1649 daAuts
+     D:2: 1374 daAuts
+     D:4: 1144 daAuts
+     D:3: 1047 daAuts
+     D:1: 1046 daAuts
+     D:5: 856 daAuts
+     D:7: 19 daAuts
+
+DLua errors:
+`;
+
+  it('correctly parses 0.35 Trunk morgue with timing table: A-G metrics, tactical decaauts, percentages, and slowest levels', () => {
+    const dist = parseTimeDistribution(trunkMorgueSnippet);
+    assert(dist !== null, 'Time distribution must not be null for Trunk morgue');
+
+    // A through G metrics
+    assert.strictEqual(dist.total_decaauts, 7136, 'Total decaauts (A) must equal 7136');
+    assert.strictEqual(dist.non_travel_decaauts, 6658, 'Non-inter-level travel decaauts (B) must equal 6658');
+    assert.strictEqual(dist.inter_travel_decaauts, 478, 'Inter-level travel decaauts (C) must equal 478');
+    assert.strictEqual(dist.resting_decaauts, 495, 'Resting decaauts (D) must equal 495');
+    assert.strictEqual(dist.explore_decaauts, 4924, 'Auto-explore decaauts (E) must equal 4924');
+    assert.strictEqual(dist.levels_seen, 7, 'Levels seen (F) must equal 7');
+    assert.strictEqual(dist.mean_per_level, 1019.4, 'Mean time per level (G) must equal 1019.4');
+
+    // Tactical decaauts: B - (D + E) = 6658 - (495 + 4924) = 1239
+    const expectedTactical = 6658 - (495 + 4924);
+    assert.strictEqual(dist.tactical_decaauts, expectedTactical);
+    assert.strictEqual(dist.tactical_decaauts, 1239);
+
+    // Percentages calculated over total decaauts (7136)
+    assert.strictEqual(dist.tactical_pct, 17.36);
+    assert.strictEqual(dist.explore_pct, 69.00);
+    assert.strictEqual(dist.inter_travel_pct, 6.70);
+    assert.strictEqual(dist.resting_pct, 6.94);
+
+    // Slowest levels
+    assert.strictEqual(dist.top_levels.length, 7);
+    assert.deepStrictEqual(dist.top_levels[0], { place: 'D:6', daAuts: 1649 });
+    assert.deepStrictEqual(dist.top_levels[1], { place: 'D:2', daAuts: 1374 });
+    assert.deepStrictEqual(dist.top_levels[2], { place: 'D:4', daAuts: 1144 });
+  });
+
+  it('enforces mathematical invariant: tactical_pct + explore_pct + inter_travel_pct + resting_pct == 100.00%', () => {
+    const dist = parseTimeDistribution(trunkMorgueSnippet);
+    assert(dist !== null);
+    const sum = dist.tactical_pct + dist.explore_pct + dist.inter_travel_pct + dist.resting_pct;
+    // Verify sum equals 100.00% within floating-point precision / rounding
+    assert(Math.abs(sum - 100.00) < 0.05, `Percentages sum must equal 100.00%, got ${sum}`);
+
+    // Verify invariant holds on a secondary synthetic table
+    const synthSnippet = `
+Table legend: (Time is in decaauts)
+                   A        B        C        D        E      F       G
+         Total |  10000 |   9000 |   1000 |   1500 |   4500 |  10 | 1000.0 |
+
+Top non-repeatable levels by time:
+     D:1: 1000 daAuts
+`;
+    const synthDist = parseTimeDistribution(synthSnippet);
+    assert(synthDist !== null);
+    // tactical: 9000 - (1500 + 4500) = 3000 -> 30.00%
+    // explore: 4500 -> 45.00%
+    // inter_travel: 1000 -> 10.00%
+    // resting: 1500 -> 15.00%
+    assert.strictEqual(synthDist.tactical_pct, 30.00);
+    assert.strictEqual(synthDist.explore_pct, 45.00);
+    assert.strictEqual(synthDist.inter_travel_pct, 10.00);
+    assert.strictEqual(synthDist.resting_pct, 15.00);
+    const synthSum = synthDist.tactical_pct + synthDist.explore_pct + synthDist.inter_travel_pct + synthDist.resting_pct;
+    assert.strictEqual(synthSum, 100.00);
+  });
+
+  it('returns null for morgues without timing table (versions 0.30, 0.31, 0.32, 0.33, 0.34)', () => {
+    const morgue030 = `
+ Dungeon Crawl Stone Soup version 0.30.2 character file.
+ Player the Fighter (level 5, -1/42 HPs)
+ Began as a Minotaur Fighter on Jan 10, 2024.
+ Slain by an ogre on level 3 of the Dungeon.
+ The game lasted 00:08:15 (1820 turns).
+`;
+    const morgue031 = `Dungeon Crawl Stone Soup version 0.31.0 character file.\nSlain by an adder on D:2.`;
+    const morgue032 = `Dungeon Crawl Stone Soup version 0.32.1 character file.\nSlain by an orc warrior on D:4.`;
+    const morgue033 = `Dungeon Crawl Stone Soup version 0.33.0 character file.\nEscaped with the Orb!`;
+    const morgue034 = `
+ Dungeon Crawl Stone Soup version 0.34.1 character file.
+ Began as an Oni Hedge Wizard on Oct 14, 2026.
+ Slain by an orc on level 4 of the Dungeon.
+ The game lasted 00:11:07 (2872 turns).
+`;
+
+    assert.strictEqual(parseTimeDistribution(morgue030), null, 'Version 0.30 morgue must return null');
+    assert.strictEqual(parseTimeDistribution(morgue031), null, 'Version 0.31 morgue must return null');
+    assert.strictEqual(parseTimeDistribution(morgue032), null, 'Version 0.32 morgue must return null');
+    assert.strictEqual(parseTimeDistribution(morgue033), null, 'Version 0.33 morgue must return null');
+    assert.strictEqual(parseTimeDistribution(morgue034), null, 'Version 0.34 morgue must return null');
+    assert.strictEqual(parseTimeDistribution(''), null, 'Empty string must return null');
+    assert.strictEqual(parseTimeDistribution(null), null, 'Null content must return null');
+  });
+
+  it('correctly parses slowest levels containing portal branches with spaces (e.g. Ice Cave: 708 daAuts)', () => {
+    const morgueWithPortals = `
+Table legend: (Time is in decaauts)
+                   A        B        C        D        E      F       G
+         Total |   8000 |   7200 |    800 |    600 |   5000 |   8 | 1000.0 |
+
+Top non-repeatable levels by time:
+     Level 2 of the Dungeon: 1,855 daAuts
+     Ice Cave: 708 daAuts
+     Ecumenical Temple: 15 daAuts
+     Desolation of Salt: 1,200 daAuts
+     Wizard Laboratory: 950 daAuts
+     D:1: 1046 daAuts
+`;
+    const dist = parseTimeDistribution(morgueWithPortals);
+    assert(dist !== null);
+    assert.strictEqual(dist.top_levels.length, 6);
+
+    const iceCave = dist.top_levels.find(l => l.place === 'Ice Cave');
+    assert(iceCave !== undefined, 'Ice Cave portal level must be captured');
+    assert.strictEqual(iceCave.place, 'Ice Cave');
+    assert.strictEqual(iceCave.daAuts, 708);
+
+    const temple = dist.top_levels.find(l => l.place === 'Ecumenical Temple');
+    assert(temple !== undefined);
+    assert.strictEqual(temple.place, 'Ecumenical Temple');
+    assert.strictEqual(temple.daAuts, 15);
+
+    const desolation = dist.top_levels.find(l => l.place === 'Desolation of Salt');
+    assert(desolation !== undefined);
+    assert.strictEqual(desolation.place, 'Desolation of Salt');
+    assert.strictEqual(desolation.daAuts, 1200);
+
+    const wizLab = dist.top_levels.find(l => l.place === 'Wizard Laboratory');
+    assert(wizLab !== undefined);
+    assert.strictEqual(wizLab.place, 'Wizard Laboratory');
+    assert.strictEqual(wizLab.daAuts, 950);
+  });
+});
+
+describe('DCSS Regression Suite — Database Migration & Semantic Version Queries', () => {
+  it('idempotently migrates schema and backfills version numbers for existing records', () => {
+    const rawDb = new DatabaseSync(':memory:');
+
+    // Create legacy table structure without semantic versioning or time distribution columns
+    rawDb.exec(`
+      CREATE TABLE games (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        species TEXT NOT NULL,
+        species_abbr TEXT NOT NULL,
+        background TEXT NOT NULL,
+        background_abbr TEXT NOT NULL,
+        combo TEXT NOT NULL,
+        char_name TEXT NOT NULL,
+        score INTEGER NOT NULL DEFAULT 0,
+        version TEXT,
+        source_file TEXT,
+        is_active INTEGER NOT NULL DEFAULT 0
+      );
+    `);
+
+    // Insert records with missing version_minor/version_major
+    const insert = rawDb.prepare(`
+      INSERT INTO games (id, name, species, species_abbr, background, background_abbr, combo, char_name, version, source_file, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insert.run('g1', 'Player1', 'Minotaur', 'Mi', 'Berserker', 'Be', 'MiBe', 'MiBe', '0.34.1', 'Stable/saves/logfile', 0);
+    insert.run('g2', 'Player2', 'Gargoyle', 'Gr', 'Earth Elementalist', 'EE', 'GrEE', 'GrEE', '0.35-a0', 'Trunk/saves/logfile', 0);
+    insert.run('g3', 'Player3', 'Djinni', 'Dj', 'Conjurer', 'Cj', 'DjCj', 'DjCj', null, 'Trunk/saves/logfile', 0);
+    insert.run('g4', 'Player4', 'Deep Elf', 'DE', 'Conjurer', 'Cj', 'DECj', 'DECj', null, 'Stable/saves/logfile', 0);
+
+    // Run migration
+    migrateSchema(rawDb);
+
+    // Verify all 8 columns were added
+    const tableInfo = rawDb.prepare('PRAGMA table_info(games)').all();
+    const colNames = new Set(tableInfo.map(c => c.name));
+    const expectedCols = [
+      'version_major',
+      'version_minor',
+      'version_patch',
+      'tactical_pct',
+      'explore_pct',
+      'inter_travel_pct',
+      'resting_pct',
+      'time_distribution',
+    ];
+    for (const col of expectedCols) {
+      assert(colNames.has(col), `Column ${col} must be added by migrateSchema`);
+    }
+
+    // Verify rows were properly backfilled
+    const g1 = rawDb.prepare('SELECT version_major, version_minor, version_patch FROM games WHERE id = ?').get('g1');
+    assert.strictEqual(g1.version_major, 0);
+    assert.strictEqual(g1.version_minor, 34);
+    assert.strictEqual(g1.version_patch, 1);
+
+    const g2 = rawDb.prepare('SELECT version_major, version_minor, version_patch FROM games WHERE id = ?').get('g2');
+    assert.strictEqual(g2.version_major, 0);
+    assert.strictEqual(g2.version_minor, 35);
+    assert.strictEqual(g2.version_patch, 0);
+
+    const g3 = rawDb.prepare('SELECT version_major, version_minor, version_patch FROM games WHERE id = ?').get('g3');
+    assert.strictEqual(g3.version_major, 0);
+    assert.strictEqual(g3.version_minor, 35);
+    assert.strictEqual(g3.version_patch, 0);
+
+    const g4 = rawDb.prepare('SELECT version_major, version_minor, version_patch FROM games WHERE id = ?').get('g4');
+    assert.strictEqual(g4.version_major, 0);
+    assert.strictEqual(g4.version_minor, 34);
+    assert.strictEqual(g4.version_patch, 0);
+
+    // Test idempotency: running migrateSchema again must not fail or alter counts
+    migrateSchema(rawDb);
+    const count = rawDb.prepare('SELECT COUNT(*) as c FROM games').get().c;
+    assert.strictEqual(count, 4);
+
+    rawDb.close();
+  });
+
+  it('correctly queries games with semantic version filters (>= 0.35, <= 0.34, all)', () => {
+    const client = createDcssDb(':memory:');
+    const db = client.rawDb;
+
+    const insert = db.prepare(`
+      INSERT INTO games (id, name, species, species_abbr, background, background_abbr, combo, char_name, version, version_major, version_minor, version_patch, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insert.run('r1', 'P1', 'Gargoyle', 'Gr', 'Fighter', 'Fi', 'GrFi', 'GrFi', '0.35-a0', 0, 35, 0, 0);
+    insert.run('r2', 'P2', 'Gargoyle', 'Gr', 'Fighter', 'Fi', 'GrFi', 'GrFi', '0.35.1', 0, 35, 1, 0);
+    insert.run('r3', 'P3', 'Minotaur', 'Mi', 'Berserker', 'Be', 'MiBe', 'MiBe', '0.34.1', 0, 34, 1, 0);
+    insert.run('r4', 'P4', 'Minotaur', 'Mi', 'Berserker', 'Be', 'MiBe', 'MiBe', '0.34.0', 0, 34, 0, 0);
+    insert.run('r5', 'P5', 'Kobold', 'Ko', 'Brigand', 'Br', 'KoBr', 'KoBr', '0.30.2', 0, 30, 2, 0);
+
+    // 1. Filter: >= 0.35 (should return r1, r2)
+    const resGe35 = client.getGames({ version: '>= 0.35' });
+    assert.strictEqual(resGe35.total, 2);
+    assert.strictEqual(resGe35.games.length, 2);
+    const idsGe35 = resGe35.games.map(g => g.id).sort();
+    assert.deepStrictEqual(idsGe35, ['r1', 'r2']);
+
+    // 2. Filter: <= 0.34 (should return r3, r4, r5)
+    const resLe34 = client.getGames({ version: '<= 0.34' });
+    assert.strictEqual(resLe34.total, 3);
+    assert.strictEqual(resLe34.games.length, 3);
+    const idsLe34 = resLe34.games.map(g => g.id).sort();
+    assert.deepStrictEqual(idsLe34, ['r3', 'r4', 'r5']);
+
+    // 3. Filter: all (should return all 5 games)
+    const resAll = client.getGames({ version: 'all' });
+    assert.strictEqual(resAll.total, 5);
+    assert.strictEqual(resAll.games.length, 5);
+
+    // 4. Minor release filter: 0.34 (should return r3, r4)
+    const res34 = client.getGames({ version: '0.34' });
+    assert.strictEqual(res34.total, 2);
+    const ids34 = res34.games.map(g => g.id).sort();
+    assert.deepStrictEqual(ids34, ['r3', 'r4']);
+
+    client.close();
+  });
+
+  it('returns versions sorted descending semantically in getVersions()', () => {
+    const client = createDcssDb(':memory:');
+    const db = client.rawDb;
+
+    const insert = db.prepare(`
+      INSERT INTO games (id, name, species, species_abbr, background, background_abbr, combo, char_name, version, version_major, version_minor, version_patch, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insert.run('v1', 'P1', 'Kobold', 'Ko', 'Brigand', 'Br', 'KoBr', 'KoBr', '0.30.2', 0, 30, 2, 0);
+    insert.run('v2', 'P2', 'Minotaur', 'Mi', 'Berserker', 'Be', 'MiBe', 'MiBe', '0.34.1', 0, 34, 1, 0);
+    insert.run('v3', 'P3', 'Gargoyle', 'Gr', 'Fighter', 'Fi', 'GrFi', 'GrFi', '0.35-a0', 0, 35, 0, 0);
+    insert.run('v4', 'P4', 'Felid', 'Fe', 'Berserker', 'Be', 'FeBe', 'FeBe', '0.32', 0, 32, 0, 0);
+    insert.run('v5', 'P5', 'Troll', 'Tr', 'Monk', 'Mo', 'TrMo', 'TrMo', '0.35.1', 0, 35, 1, 0);
+
+    const verInfo = client.getVersions();
+    assert(Array.isArray(verInfo.versions));
+    assert.deepStrictEqual(verInfo.versions, ['0.35.1', '0.35-a0', '0.34.1', '0.32', '0.30.2']);
+
+    client.close();
+  });
+});
+
 
 
