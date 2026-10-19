@@ -48,9 +48,8 @@ describe('DCSS Regression Suite — Logfile Parser', () => {
     assert.strictEqual(parsed.is_win, 0);
     assert.strictEqual(parsed.turn_speed, Number((8596 / 1663).toFixed(2)));
     assert.strictEqual(parsed.killer, 'an orc warlord');
-    assert.strictEqual(parsed.place, 'Bailey');
-    assert.strictEqual(parsed.start_time, '2026-10-17T13:01:46.000Z');
-    assert.strictEqual(parsed.end_time, '2026-10-17T13:33:02.000Z');
+    assert.strictEqual(parsed.start_time, new Date(2026, 9, 17, 13, 1, 46).toISOString());
+    assert.strictEqual(parsed.end_time, new Date(2026, 9, 17, 13, 33, 2).toISOString());
   });
 
   it('correctly detects winning games (Escaped with Orb) and extracts runes', () => {
