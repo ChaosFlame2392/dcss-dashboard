@@ -114,6 +114,50 @@ const BACKGROUNDS = [
   { abbr: 'VM', name: 'Venom Mage', category: 'Mages', trunk: false, legacy: true },
 ];
 
+// Background Categories & Search Synonyms Mapping
+const CATEGORY_BACKGROUND_MAP = {
+  // Warriors
+  'warrior': ['Fi', 'Gl', 'Mo', 'Hu', 'Br', 'Sk', 'Cr', 'Th'],
+  'warriors': ['Fi', 'Gl', 'Mo', 'Hu', 'Br', 'Sk', 'Cr', 'Th'],
+
+  // Zealots
+  'zealot': ['Be', 'CK', 'CA', 'He', 'DK', 'Pr', 'Pa', 'AK'],
+  'zealots': ['Be', 'CK', 'CA', 'He', 'DK', 'Pr', 'Pa', 'AK'],
+
+  // Mages
+  'mage': ['FE', 'IE', 'AE', 'EE', 'Al', 'Cj', 'En', 'Ne', 'Su', 'HW', 'VM'],
+  'mages': ['FE', 'IE', 'AE', 'EE', 'Al', 'Cj', 'En', 'Ne', 'Su', 'HW', 'VM'],
+  'wizard': ['FE', 'IE', 'AE', 'EE', 'Al', 'Cj', 'En', 'Ne', 'Su', 'HW', 'VM'],
+  'wizards': ['FE', 'IE', 'AE', 'EE', 'Al', 'Cj', 'En', 'Ne', 'Su', 'HW', 'VM'],
+  'caster': ['FE', 'IE', 'AE', 'EE', 'Al', 'Cj', 'En', 'Ne', 'Su', 'HW', 'VM'],
+  'casters': ['FE', 'IE', 'AE', 'EE', 'Al', 'Cj', 'En', 'Ne', 'Su', 'HW', 'VM'],
+
+  // Adventurers
+  'adventurer': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
+  'adventurers': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
+  'adventuror': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
+  'adventurors': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
+  'advneturor': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
+  'advneturors': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
+
+  // Warrior-Mages / Hybrids
+  'warrior-mage': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+  'warrior-mages': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+  'warriormage': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+  'warriormages': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+  'warrior mage': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+  'warrior mages': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+  'hybrid': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+  'hybrids': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+
+  // Elementalists
+  'elementalist': ['FE', 'IE', 'AE', 'EE'],
+  'elementalists': ['FE', 'IE', 'AE', 'EE'],
+  'elemental': ['FE', 'IE', 'AE', 'EE'],
+  'elementatlist': ['FE', 'IE', 'AE', 'EE'],
+  'elementatlists': ['FE', 'IE', 'AE', 'EE'],
+};
+
 // All valid DCSS Gods
 const GODS = [
   'Ashenzari',
@@ -577,5 +621,6 @@ module.exports = {
   parseDcssVersion,
   compareVersions,
   matchesVersionFilter,
+  CATEGORY_BACKGROUND_MAP,
 };
 

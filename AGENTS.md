@@ -214,13 +214,24 @@ To keep table columns universal, Lowest Common Denominator (LCD), and free of ho
    - Displays full character combo title (e.g., `Gnoll Hexslinger`), 4-letter code (`GnHs`), full species name, background name, character name, level (`XL 8`), and deity worshipped.
    - Summarizes player combo history from matrix data (games played, wins, win rate, best XL).
 2. **Turn Distribution Popover (`td.run-turns-col` -> `#turnDistPopover`):**
-   - Displays total in-game turns.
-   - For DCSS 0.35+ Trunk runs: Renders the segmented CSS flex-ratio bar (Cyan `#34e2e2` Tactical, Green `#8ae234` Explore, Magenta `#fd59fa` Inter-Travel, Blue `#729fcf` Resting), exact percentages and raw daAuts, and slowest levels.
-   - For 0.30–0.34 runs: Displays a clean turn summary and notes that decaaut action distribution is available in DCSS 0.35+.
+   - For DCSS 0.35+ Trunk runs with decaaut telemetry: Renders the segmented CSS flex-ratio bar (Cyan `#34e2e2` Tactical, Green `#8ae234` Explore, Magenta `#fd59fa` Inter-Travel, Blue `#729fcf` Resting) with exact percentages and raw turns. Unified language to "turns". Redundant `Total Turns` header and slowest levels list removed (slowest levels remain accessible in the full Morgue Modal Time Card).
+   - For 0.30–0.34 runs: Popover is cleanly suppressed (zero empty dummy popups).
 3. **Speed & Pace Analytics Popover (`td.run-speed-col` -> `#speedStatsPopover`):**
-   - Displays overall turn speed (`turns / sec`), action delay/pace (`sec / turn`), real duration, and total turns.
-   - When decaaut telemetry exists: Displays tactical action decaauts and percentage, levels visited, and mean action time per level (`daAuts / level`).
-   - Standardized across both Recent Runs and Run Explorer tables.
+   - Displays overall turn speed (`turns / sec`) and action delay/pace (`sec / turn`).
+   - When decaaut telemetry exists: Displays tactical actions (`turns` and `%`) and mean action time per level (`daAuts / level`).
+   - Redundant duration and total turns rows omitted since both have dedicated adjacent table columns.
 4. **Time & Timestamps Popover (`td.run-time-col` -> `#timePopover`):**
-   - Dedicated strictly to run timestamps and real elapsed time (Ended, Started, Duration).
+   - Dedicated strictly to run timestamps (Ended, Started) formatted in clean 24-hour time (`HH:MM:SS`, e.g. `12:19:38`). Redundant duration row omitted.
+
+### 8.9 Multi-Term OR Search & Prebuilt Background Categories
+- **Multi-Term OR Syntax:** Run Explorer search supports multi-term OR queries separated by commas (`,`), pipes (`|`), or case-insensitive `or` (e.g. `Cj or Elementalist`, `Cj, EE`, `Cj | FE`). Each subclause can contain multiple whitespace-delimited tokens that are evaluated with AND logic.
+- **Prebuilt DCSS Background Categories:** Supports searching Crawl's official character creation categories and sub-archetypes across both client-side 0ms cache and server-side SQL queries:
+  - `warrior` / `warriors`: Fighter (`Fi`), Gladiator (`Gl`), Monk (`Mo`), Hunter (`Hu`), Brigand (`Br`), Skald (`Sk`), Crusader (`Cr`), Thief (`Th`).
+  - `zealot` / `zealots`: Berserker (`Be`), Chaos Knight (`CK`), Cinder Acolyte (`CA`), Healer (`He`), Death Knight (`DK`), Priest (`Pr`), Paladin (`Pa`), Abyssal Knight (`AK`).
+  - `mage` / `mages` / `wizard` / `caster`: Fire/Ice/Air/Earth Elementalist (`FE`, `IE`, `AE`, `EE`), Alchemist (`Al`), Conjurer (`Cj`), Enchanter (`En`), Necromancer (`Ne`), Summoner (`Su`), Hedge Wizard (`HW`), Venom Mage (`VM`).
+  - `adventurer` / `adventurers` (including typo `advneturor`): Artificer (`Ar`), Shapeshifter (`Sh`), Wanderer (`Wn`), Hexslinger (`Hs`), Warper (`Wr`), Delver (`De`), Reaver (`Re`), Forgewright (`Fw`), Stalker (`St`), Mystic (`My`), Transmuter (`Tm`), Jester (`Jr`).
+  - `warrior-mage` / `warrior mage` / `hybrid`: Enchanter (`En`), Hexslinger (`Hs`), Warper (`Wr`), Reaver (`Re`), Stalker (`St`), Skald (`Sk`), Crusader (`Cr`).
+  - `elementalist` / `elementalists` (including typo `elementatlists`): Fire, Ice, Air, and Earth Elementalist (`FE`, `IE`, `AE`, `EE`).
+- **24-Hour Time Format:** All table timestamp cells (`formatShortDateTime`) and popover detail timestamps (`formatFullDateTime`) display timestamps strictly in 24-hour format (`HH:MM:SS`), avoiding 12-hour AM/PM markers.
+
 

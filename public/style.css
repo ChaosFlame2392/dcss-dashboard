@@ -1015,8 +1015,7 @@ table.games-table tr:hover {
 }
 
 .popover-details-grid,
-.popover-stats-grid,
-.speed-popover-grid {
+.popover-stats-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 0.35rem 0.75rem;
@@ -1024,9 +1023,23 @@ table.games-table tr:hover {
   margin-top: 0.35rem;
 }
 
+.speed-popover-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.speed-popover-grid > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .popover-details-grid .label,
-.speed-popover-grid .label,
-.turn-dist-total-row .label {
+.speed-popover-grid .label {
   color: var(--muted-foreground);
 }
 
@@ -1035,19 +1048,6 @@ table.games-table tr:hover {
   color: var(--page-heading);
   font-size: 0.75rem;
   margin-bottom: 0.35rem;
-}
-
-.turn-dist-total-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.75rem;
-  margin-bottom: 0.25rem;
-}
-
-.turn-dist-total-row strong {
-  color: var(--accent);
-  font-size: 0.85rem;
 }
 
 .time-popover-timestamps {

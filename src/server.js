@@ -185,7 +185,7 @@ app.get('/api/active', (req, res) => {
 // 5. Run Recommendations ("Suggest" engine)
 app.get('/api/suggest', (req, res) => {
   try {
-    const suggestions = client.getSuggestions();
+    const suggestions = client.getSuggestions(req.query);
     res.json({ success: true, suggestions });
   } catch (err) {
     console.error('Error generating suggestions:', err);
