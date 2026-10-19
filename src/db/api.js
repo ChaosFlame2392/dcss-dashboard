@@ -16,6 +16,34 @@ const {
 } = require('./constants');
 
 /**
+ * Parses date string (YYYY-MM-DD or ISO) into local start-of-day ISO string
+ */
+function parseLocalDateStart(dateStr) {
+  if (!dateStr) return null;
+  if (dateStr.includes('T')) return dateStr;
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length === 3 && !parts.some(isNaN)) {
+    const dt = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+    if (!isNaN(dt.getTime())) return dt.toISOString();
+  }
+  return `${dateStr}T00:00:00.000Z`;
+}
+
+/**
+ * Parses date string (YYYY-MM-DD or ISO) into local end-of-day ISO string
+ */
+function parseLocalDateEnd(dateStr) {
+  if (!dateStr) return null;
+  if (dateStr.includes('T')) return dateStr;
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length === 3 && !parts.some(isNaN)) {
+    const dt = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999);
+    if (!isNaN(dt.getTime())) return dt.toISOString();
+  }
+  return `${dateStr}T23:59:59.999Z`;
+}
+
+/**
  * Builds SQL WHERE clause and parameters from filter options
  */
 function buildWhereClause(filter = {}) {
@@ -28,15 +56,14 @@ function buildWhereClause(filter = {}) {
     const now = new Date();
 
     if (range === 'today') {
-      const todayStr = now.toISOString().slice(0, 10);
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
       conditions.push('end_time >= ?');
-      params.push(`${todayStr}T00:00:00.000Z`);
+      params.push(todayStart);
     } else if (range === 'yesterday') {
-      const yesterday = new Date(now.getTime() - 86400 * 1000);
-      const yesterdayStr = yesterday.toISOString().slice(0, 10);
-      const todayStr = now.toISOString().slice(0, 10);
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).toISOString();
       conditions.push('end_time >= ? AND end_time < ?');
-      params.push(`${yesterdayStr}T00:00:00.000Z`, `${todayStr}T00:00:00.000Z`);
+      params.push(yesterdayStart, todayStart);
     } else if (range === '7d' || range === 'last_7_days' || range === 'week') {
       const d7 = new Date(now.getTime() - 7 * 86400 * 1000).toISOString();
       conditions.push('end_time >= ?');
@@ -50,12 +77,12 @@ function buildWhereClause(filter = {}) {
 
   // Custom date bounds (from / to)
   if (filter.from) {
-    const fromIso = filter.from.includes('T') ? filter.from : `${filter.from}T00:00:00.000Z`;
+    const fromIso = parseLocalDateStart(filter.from);
     conditions.push('end_time >= ?');
     params.push(fromIso);
   }
   if (filter.to) {
-    const toIso = filter.to.includes('T') ? filter.to : `${filter.to}T23:59:59.999Z`;
+    const toIso = parseLocalDateEnd(filter.to);
     conditions.push('end_time <= ?');
     params.push(toIso);
   }
@@ -189,12 +216,12 @@ function activeRunMatchesFilter(ar, filter = {}) {
     const arTime = new Date(ar.end_time || ar.start_time || Date.now()).getTime();
 
     if (range === 'today') {
-      const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      const utcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).getTime();
-      const todayCutoff = Math.min(localMidnight, utcMidnight);
-      if (arTime < todayCutoff) return false;
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      if (arTime < todayStart) return false;
     } else if (range === 'yesterday') {
-      return false;
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime();
+      if (arTime < yesterdayStart || arTime >= todayStart) return false;
     } else if (range === '7d' || range === 'last_7_days' || range === 'week') {
       if (arTime < (now.getTime() - 7 * 86400 * 1000)) return false;
     } else if (range === '30d' || range === 'last_30_days' || range === 'month') {
@@ -204,13 +231,13 @@ function activeRunMatchesFilter(ar, filter = {}) {
 
   // 2. Custom date bounds
   if (filter.from) {
-    const fromTime = new Date(filter.from.includes('T') ? filter.from : `${filter.from}T00:00:00.000Z`).getTime();
-    const arTime = new Date(ar.end_time || Date.now()).getTime();
+    const fromTime = new Date(parseLocalDateStart(filter.from)).getTime();
+    const arTime = new Date(ar.end_time || ar.start_time || Date.now()).getTime();
     if (arTime < fromTime) return false;
   }
   if (filter.to) {
-    const toTime = new Date(filter.to.includes('T') ? filter.to : `${filter.to}T23:59:59.999Z`).getTime();
-    const arTime = new Date(ar.end_time || Date.now()).getTime();
+    const toTime = new Date(parseLocalDateEnd(filter.to)).getTime();
+    const arTime = new Date(ar.end_time || ar.start_time || Date.now()).getTime();
     if (arTime > toTime) return false;
   }
 
