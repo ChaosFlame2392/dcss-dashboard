@@ -265,25 +265,9 @@ function buildWhereClause(filter = {}) {
         const catBgs = CATEGORY_BACKGROUND_MAP[cleanTerm];
         if (catBgs && catBgs.length > 0) {
           const placeholders = catBgs.map(() => '?').join(',');
-          const term = `%${cleanTerm}%`;
-          termClauses.push(`(
-            background_abbr IN (${placeholders}) OR
-            LOWER(combo) LIKE ? OR
-            LOWER(name) LIKE ? OR
-            LOWER(killer) LIKE ? OR
-            LOWER(place) LIKE ? OR
-            LOWER(outcome) LIKE ? OR
-            LOWER(char_name) LIKE ? OR
-            LOWER(god) LIKE ? OR
-            LOWER(species) LIKE ? OR
-            LOWER(background) LIKE ? OR
-            seed LIKE ?
-          )`);
+          termClauses.push(`background_abbr IN (${placeholders})`);
           for (const bg of catBgs) {
             params.push(bg);
-          }
-          for (let i = 0; i < 10; i++) {
-            params.push(term);
           }
         } else {
           const term = `%${cleanTerm}%`;
