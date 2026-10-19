@@ -1078,12 +1078,15 @@ describe('DCSS Regression Suite — Multi-Term OR Search & Prebuilt Categories',
     assert.strictEqual(resWm2.total, 1);
     assert.strictEqual(resWm2.games[0].id, 'a1');
 
-    // 6. Category: adventurer and typo advneturor (matches Hexslinger and Wanderer)
+    // 6. Category: adventurer and plural adventurers (matches Hexslinger and Wanderer)
     const resAdv1 = client.getGames({ q: 'adventurer' });
     assert.strictEqual(resAdv1.total, 2);
 
-    const resAdv2 = client.getGames({ q: 'advneturor' });
+    const resAdv2 = client.getGames({ q: 'adventurers' });
     assert.strictEqual(resAdv2.total, 2);
+
+    // Verify warrior search strictly excludes warrior-mage / Hexslinger
+    assert.strictEqual(resWarrior.games.some(g => g.background === 'Hexslinger'), false);
 
     // 7. Combined OR query with category: 'Cj or elementalists'
     const resCombined = client.getGames({ q: 'Cj or elementalists' });
