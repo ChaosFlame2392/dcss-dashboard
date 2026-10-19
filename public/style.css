@@ -1004,11 +1004,6 @@ table.games-table tr:hover {
   max-width: 380px;
 }
 
-.speed-stats-popover {
-  min-width: 290px;
-  max-width: 360px;
-}
-
 .time-popover {
   min-width: 260px;
   max-width: 340px;
@@ -1023,23 +1018,7 @@ table.games-table tr:hover {
   margin-top: 0.35rem;
 }
 
-.speed-popover-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  font-size: 0.75rem;
-  margin-top: 0.35rem;
-}
-
-.speed-popover-grid > div {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.popover-details-grid .label,
-.speed-popover-grid .label {
+.popover-details-grid .label {
   color: var(--muted-foreground);
 }
 

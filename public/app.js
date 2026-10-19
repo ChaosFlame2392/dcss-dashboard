@@ -981,7 +981,7 @@ function renderRecentRuns() {
         <td>${(run.score || 0).toLocaleString()}</td>
         <td class="run-turns-col" data-run-id="${escapeHtml(run.id)}">${(run.turns || 0).toLocaleString()}</td>
         <td>${escapeHtml(run.duration_formatted || '-')}</td>
-        <td class="run-speed-col" data-run-id="${escapeHtml(run.id)}">${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
+        <td>${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
         <td>${run.is_win ? '<span class="win-badge">WON</span> ' : ''}${escapeHtml(run.outcome || 'Died')}</td>
         <td class="run-time-col" data-run-id="${escapeHtml(run.id)}">${dateStr}</td>
       </tr>
@@ -1024,7 +1024,7 @@ function renderExplorerRuns() {
         <td>${(run.score || 0).toLocaleString()}</td>
         <td class="run-turns-col" data-run-id="${escapeHtml(run.id)}">${(run.turns || 0).toLocaleString()}</td>
         <td>${escapeHtml(run.duration_formatted || '-')}</td>
-        <td class="run-speed-col" data-run-id="${escapeHtml(run.id)}">${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
+        <td>${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
         <td>${run.is_win ? '<span class="win-badge">WON</span> ' : ''}${escapeHtml(run.outcome || 'Died')}</td>
         <td class="run-time-col" data-run-id="${escapeHtml(run.id)}">${dateStr}</td>
       </tr>
@@ -1819,55 +1819,6 @@ function hideTurnDistPopover() {
   if (popover) popover.style.display = 'none';
 }
 
-function showSpeedPopover(element, runId) {
-  const run = findRunById(runId);
-  if (!run) return;
-
-  const popover = document.getElementById('speedStatsPopover');
-  if (!popover) return;
-
-  hideAllTablePopovers();
-
-  const turnSpeedEl = document.getElementById('speedPopoverTurnSpeed');
-  const paceEl = document.getElementById('speedPopoverPace');
-
-  if (turnSpeedEl) {
-    turnSpeedEl.textContent = run.turn_speed ? `${run.turn_speed.toFixed(2)} turns / sec` : 'N/A';
-  }
-
-  if (paceEl) {
-    if (run.duration_seconds && run.turns && run.turns > 0) {
-      paceEl.textContent = `${(run.duration_seconds / run.turns).toFixed(3)} sec / turn`;
-    } else if (run.turn_speed && run.turn_speed > 0) {
-      paceEl.textContent = `${(1 / run.turn_speed).toFixed(3)} sec / turn`;
-    } else {
-      paceEl.textContent = 'N/A';
-    }
-  }
-
-  const dist = getRunTimeDist(run);
-  const hasTimeDist = dist && (dist.total_decaauts > 0 || (dist.tactical_decaauts + dist.explore_decaauts + dist.inter_travel_decaauts + dist.resting_decaauts > 0));
-  const decaAutSection = document.getElementById('speedPopoverDecaAutSection');
-
-  if (hasTimeDist) {
-    if (decaAutSection) decaAutSection.style.display = 'block';
-    const tacticalEl = document.getElementById('speedPopoverTacticalDa');
-    const meanEl = document.getElementById('speedPopoverMeanPerLevel');
-
-    if (tacticalEl) tacticalEl.textContent = `${Number(dist.tactical_decaauts || 0).toLocaleString()} turns (${dist.tactical_pct ?? 0}%)`;
-    if (meanEl) meanEl.textContent = `${dist.mean_per_level ?? 0} daAuts / level`;
-  } else {
-    if (decaAutSection) decaAutSection.style.display = 'none';
-  }
-
-  positionClampedPopover(popover, element, false);
-}
-
-function hideSpeedPopover() {
-  const popover = document.getElementById('speedStatsPopover');
-  if (popover) popover.style.display = 'none';
-}
-
 function showTimePopover(element, runId) {
   const run = findRunById(runId);
   if (!run) return;
@@ -1917,7 +1868,6 @@ function hideTimePopover() {
 function hideAllTablePopovers() {
   hideComboPopover();
   hideTurnDistPopover();
-  hideSpeedPopover();
   hideTimePopover();
 }
 
@@ -1937,14 +1887,7 @@ function initTablePopovers() {
       return;
     }
 
-    // 3. Speed column
-    const speedTd = e.target.closest('td.run-speed-col');
-    if (speedTd && speedTd.dataset.runId) {
-      showSpeedPopover(speedTd, speedTd.dataset.runId);
-      return;
-    }
-
-    // 4. Time column
+    // 3. Time column
     const timeTd = e.target.closest('td.run-time-col');
     if (timeTd && timeTd.dataset.runId) {
       showTimePopover(timeTd, timeTd.dataset.runId);
@@ -1953,7 +1896,7 @@ function initTablePopovers() {
   });
 
   document.addEventListener('mouseout', (e) => {
-    const td = e.target.closest('td.run-combo-col, td.run-turns-col, td.run-speed-col, td.run-time-col');
+    const td = e.target.closest('td.run-combo-col, td.run-turns-col, td.run-time-col');
     if (td) {
       const related = e.relatedTarget;
       if (!related || !td.contains(related)) {
