@@ -367,8 +367,8 @@ function parseRawDate(rawStr) {
   const min = parseInt(digits.slice(10, 12), 10);
   const sec = parseInt(digits.slice(12, 14), 10);
 
-  const date = new Date(Date.UTC(year, monthIndex, day, hour, min, sec));
-  return date.toISOString();
+  const date = new Date(year, monthIndex, day, hour, min, sec);
+  return isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 /**

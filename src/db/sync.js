@@ -158,21 +158,44 @@ function locateArtifactDirs(dcssDir) {
 }
 
 /**
- * Resolves morgue filename from a game entry
+ * Resolves morgue filename from a game entry.
+ * DCSS names morgue files on disk using local system time.
+ * Falls back to UTC getters if local name is not found in morgueFiles (e.g. remote WebTiles logs).
  */
-function getExpectedMorgueFilename(game) {
+function getExpectedMorgueFilename(game, morgueFiles = null) {
   if (!game.end_time || !game.name) return null;
   const d = new Date(game.end_time);
   if (isNaN(d.getTime())) return null;
 
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  const hh = String(d.getUTCHours()).padStart(2, '0');
-  const mm = String(d.getUTCMinutes()).padStart(2, '0');
-  const ss = String(d.getUTCSeconds()).padStart(2, '0');
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
 
-  return `morgue-${game.name}-${y}${m}${day}-${hh}${mm}${ss}.txt`;
+  const localName = `morgue-${game.name}-${y}${m}${day}-${hh}${mm}${ss}.txt`;
+
+  if (morgueFiles) {
+    const hasFile = (fn) => (typeof morgueFiles.has === 'function' ? morgueFiles.has(fn) : Boolean(morgueFiles[fn]));
+    if (hasFile(localName)) {
+      return localName;
+    }
+
+    const utcY = d.getUTCFullYear();
+    const utcM = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const utcDay = String(d.getUTCDate()).padStart(2, '0');
+    const utcHH = String(d.getUTCHours()).padStart(2, '0');
+    const utcMM = String(d.getUTCMinutes()).padStart(2, '0');
+    const utcSS = String(d.getUTCSeconds()).padStart(2, '0');
+    const utcName = `morgue-${game.name}-${utcY}${utcM}${utcDay}-${utcHH}${utcMM}${utcSS}.txt`;
+
+    if (hasFile(utcName)) {
+      return utcName;
+    }
+  }
+
+  return localName;
 }
 
 /**
@@ -331,7 +354,7 @@ function sync(db, options = {}) {
           if (!game) continue;
 
           // Attempt morgue enrichment
-          const expectedMorgue = getExpectedMorgueFilename(game);
+          const expectedMorgue = getExpectedMorgueFilename(game, morgueFiles);
           if (expectedMorgue && morgueFiles.has(expectedMorgue)) {
             const fullMorguePath = morgueFiles.get(expectedMorgue);
             game.morgue_file = path.relative(path.dirname(dcssDir), fullMorguePath);
