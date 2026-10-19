@@ -976,3 +976,159 @@ table.games-table tr:hover {
   color: var(--foreground);
   line-height: 1.45;
 }
+
+/* Time Popover & DecaAut Distribution */
+.time-popover {
+  position: fixed !important;
+  background-color: #0e0a14;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--page-heading);
+  border-radius: 4px;
+  padding: 0.85rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.9), 0 0 10px rgba(252, 233, 79, 0.15);
+  z-index: 99999;
+  min-width: 290px;
+  max-width: 360px;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.time-popover-timestamps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.time-popover-timestamps .label {
+  color: var(--muted-foreground);
+}
+
+.time-popover-timestamps strong {
+  color: var(--foreground);
+}
+
+.time-popover-divider {
+  border-top: 1px solid var(--border);
+  margin: 0.5rem 0;
+}
+
+.time-dist-header {
+  font-weight: 700;
+  color: var(--page-heading);
+  font-size: 0.8rem;
+  margin-bottom: 0.4rem;
+}
+
+/* Crawl-themed Visual Segmented Distribution Bar */
+.time-dist-bar-wrapper {
+  background-color: #1a1622;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  height: 12px;
+  overflow: hidden;
+  margin-bottom: 0.6rem;
+}
+
+.time-dist-bar {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+
+.time-dist-seg-tactical { background-color: #34e2e2; } /* Cyan */
+.time-dist-seg-explore { background-color: #8ae234; }  /* Green */
+.time-dist-seg-travel { background-color: #fd59fa; }   /* Magenta */
+.time-dist-seg-resting { background-color: #729fcf; }  /* Blue */
+
+/* Grid of DecaAut Metrics */
+.time-dist-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+}
+
+.time-dist-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.time-dist-item .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.time-dist-item.tactical .dot { background-color: #34e2e2; }
+.time-dist-item.explore .dot { background-color: #8ae234; }
+.time-dist-item.travel .dot { background-color: #fd59fa; }
+.time-dist-item.resting .dot { background-color: #729fcf; }
+
+.time-dist-item .name {
+  color: var(--muted-foreground);
+  width: 95px;
+  flex-shrink: 0;
+}
+
+.time-dist-item strong {
+  color: var(--foreground);
+  min-width: 48px;
+}
+
+.time-dist-item .raw {
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+  margin-left: auto;
+}
+
+.time-slowest-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--page-heading);
+  margin-bottom: 0.3rem;
+}
+
+.time-slowest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+}
+
+.time-slowest-row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted-foreground);
+}
+
+.time-slowest-row strong {
+  color: var(--accent);
+}
+
+/* Hoverable Time Cell in Runs Tables */
+td.run-time-col {
+  cursor: pointer;
+  transition: color 0.1s ease;
+}
+
+td.run-time-col:hover {
+  color: var(--page-heading) !important;
+  text-decoration: underline;
+}
+
+/* Morgue Modal Time Card */
+.morgue-time-card {
+  background-color: #120d1c;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--page-heading);
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 1.25rem 0 1.25rem;
+  font-family: var(--font-mono);
+}
+

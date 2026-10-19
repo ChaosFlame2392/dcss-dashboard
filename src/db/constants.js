@@ -415,6 +415,144 @@ function rollRecommendedCombo() {
   };
 }
 
+/**
+ * Extracts semver components from a DCSS version string.
+ * Handles release strings ("0.34.1", "0.30.2"), pre-releases ("0.35-a0", "0.35-a0-1308-g77a9b5a25e"),
+ * and aliases ("trunk", "stable").
+ *
+ * @param {string} vStr
+ * @returns {{ major: number, minor: number, patch: number, prerelease: string|null, raw: string }}
+ */
+function parseDcssVersion(vStr) {
+  if (!vStr) {
+    return { major: 0, minor: 0, patch: 0, prerelease: null, raw: '' };
+  }
+  const raw = String(vStr).trim();
+  const lower = raw.toLowerCase();
+
+  // DCSS version aliases
+  if (lower === 'trunk') {
+    return { major: 0, minor: 35, patch: 0, prerelease: 'a0', raw };
+  }
+  if (lower === 'stable') {
+    return { major: 0, minor: 34, patch: 0, prerelease: null, raw };
+  }
+
+  // Regex matching DCSS semver pattern e.g. 0.34.1, 0.35-a0, 0.35-a0-1308-g77a9b5a25e
+  const clean = raw.replace(/^v/i, '');
+  const match = clean.match(/^(\d+)\.(\d+)(?:\.(\d+))?(?:-([a-zA-Z0-9.-]+))?/);
+  if (!match) {
+    return { major: 0, minor: 0, patch: 0, prerelease: null, raw };
+  }
+
+  const major = parseInt(match[1], 10);
+  const minor = parseInt(match[2], 10);
+  const patch = match[3] !== undefined ? parseInt(match[3], 10) : 0;
+  const prerelease = match[4] || null;
+
+  return {
+    major,
+    minor,
+    patch,
+    prerelease,
+    raw,
+  };
+}
+
+/**
+ * Compares two DCSS versions by major, minor, patch.
+ * For Crawl trunk releases, 0.35-a0 is considered the active 0.35 cycle (so >= 0.35 evaluates to true for 0.35-a0).
+ *
+ * @param {string|object} v1
+ * @param {string|object} v2
+ * @returns {number} Negative if v1 < v2, positive if v1 > v2, 0 if equal
+ */
+function compareVersions(v1, v2) {
+  const p1 = (v1 && typeof v1 === 'object' && 'major' in v1) ? v1 : parseDcssVersion(v1);
+  const p2 = (v2 && typeof v2 === 'object' && 'major' in v2) ? v2 : parseDcssVersion(v2);
+
+  if (p1.major !== p2.major) return p1.major - p2.major;
+  if (p1.minor !== p2.minor) return p1.minor - p2.minor;
+  if (p1.patch !== p2.patch) return p1.patch - p2.patch;
+
+  // Both are on the same major, minor, patch
+  if (p1.prerelease && p2.prerelease) {
+    return p1.prerelease.localeCompare(p2.prerelease, undefined, { numeric: true });
+  }
+
+  return 0;
+}
+
+/**
+ * Checks if a DCSS version string satisfies a filter criteria.
+ * Evaluates operators (>=, <=, >, <, ==, !=), minor releases (e.g. "0.34" matches any 0.34.x),
+ * and exact versions.
+ *
+ * @param {string} versionStr
+ * @param {string} filterStr
+ * @returns {boolean}
+ */
+function matchesVersionFilter(versionStr, filterStr) {
+  const trimmedFilter = String(filterStr || '').trim();
+  if (!trimmedFilter || trimmedFilter.toLowerCase() === 'all') return true;
+  if (!versionStr) return false;
+
+  const v = parseDcssVersion(versionStr);
+  const lowerFilter = trimmedFilter.toLowerCase();
+
+  // 1. Comparison operators: >=, <=, >, <, ==, =, !=
+  const opMatch = trimmedFilter.match(/^([><]=?|==?|!=)\s*(.*)$/);
+  if (opMatch) {
+    const op = opMatch[1];
+    const target = opMatch[2].trim();
+    const f = parseDcssVersion(target);
+    const hasPatch = /^\d+\.\d+\.\d+/.test(target);
+
+    if (!hasPatch && !f.prerelease) {
+      // Comparing by major & minor cycle (e.g. >= 0.35 or <= 0.34)
+      if (op === '>=') return v.major > f.major || (v.major === f.major && v.minor >= f.minor);
+      if (op === '>') return v.major > f.major || (v.major === f.major && v.minor > f.minor);
+      if (op === '<=') return v.major < f.major || (v.major === f.major && v.minor <= f.minor);
+      if (op === '<') return v.major < f.major || (v.major === f.major && v.minor < f.minor);
+      if (op === '==' || op === '=') return v.major === f.major && v.minor === f.minor;
+      if (op === '!=') return v.major !== f.major || v.minor !== f.minor;
+    } else {
+      const cmp = compareVersions(v, f);
+      if (op === '>=') return cmp >= 0;
+      if (op === '>') return cmp > 0;
+      if (op === '<=') return cmp <= 0;
+      if (op === '<') return cmp < 0;
+      if (op === '==' || op === '=') return cmp === 0;
+      if (op === '!=') return cmp !== 0;
+    }
+    return false;
+  }
+
+  // 2. Named aliases
+  if (lowerFilter === 'stable') {
+    return v.major === 0 && v.minor === 34;
+  }
+  if (lowerFilter === 'trunk') {
+    return v.major === 0 && v.minor === 35;
+  }
+
+  // 3. Minor release match: e.g. "0.34" matches any 0.34.x
+  const minorMatch = trimmedFilter.match(/^(\d+)\.(\d+)$/);
+  if (minorMatch) {
+    const fMajor = parseInt(minorMatch[1], 10);
+    const fMinor = parseInt(minorMatch[2], 10);
+    return v.major === fMajor && v.minor === fMinor;
+  }
+
+  // 4. Exact string match or version comparison
+  if (versionStr === trimmedFilter || versionStr.startsWith(trimmedFilter)) {
+    return true;
+  }
+
+  const f = parseDcssVersion(trimmedFilter);
+  return compareVersions(v, f) === 0;
+}
+
 module.exports = {
   SPECIES,
   BACKGROUNDS,
@@ -436,5 +574,8 @@ module.exports = {
   isValidCombo,
   formatDuration,
   parseRawDate,
+  parseDcssVersion,
+  compareVersions,
+  matchesVersionFilter,
 };
 
