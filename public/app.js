@@ -159,39 +159,19 @@ const CATEGORY_BACKGROUND_MAP = {
   // Adventurers
   'adventurer': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
   'adventurers': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
-  'adventuror': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
-  'adventurors': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
-  'advneturor': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
-  'advneturors': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
 
   // Warrior-Mages / Hybrids
   'warrior-mage': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
   'warrior-mages': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
   'warriormage': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
   'warriormages': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
-  'warrior mage': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
-  'warrior mages': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
   'hybrid': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
   'hybrids': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
 
   // Elementalists
   'elementalist': ['FE', 'IE', 'AE', 'EE'],
   'elementalists': ['FE', 'IE', 'AE', 'EE'],
-  'elemental': ['FE', 'IE', 'AE', 'EE'],
-  'elementatlist': ['FE', 'IE', 'AE', 'EE'],
-  'elementatlists': ['FE', 'IE', 'AE', 'EE'],
 };
-
-const BG_CATEGORY_KEYWORDS = {};
-for (const [catName, bgs] of Object.entries(CATEGORY_BACKGROUND_MAP)) {
-  for (const bg of bgs) {
-    if (!BG_CATEGORY_KEYWORDS[bg]) BG_CATEGORY_KEYWORDS[bg] = [];
-    BG_CATEGORY_KEYWORDS[bg].push(catName);
-  }
-}
-for (const bg in BG_CATEGORY_KEYWORDS) {
-  BG_CATEGORY_KEYWORDS[bg] = BG_CATEGORY_KEYWORDS[bg].join(' ');
-}
 
 const UNAVAILABLE_COMBOS = new Set([
   'GhTm', 'MuTm', 'GhSh', 'MuSh', 'DgMo', 'DgCK', 'DgCA', 'DgBe', 'DgAK',
@@ -654,9 +634,7 @@ function matchesToken(run, token) {
   // 5. Background Category (e.g. 'warrior', 'mage', 'warrior-mage', 'elementalists', 'adventurer', 'zealot')
   if (CATEGORY_BACKGROUND_MAP[token]) {
     const validBgs = CATEGORY_BACKGROUND_MAP[token];
-    if (validBgs.includes(run.background_abbr) || validBgs.some(b => b.toLowerCase() === run._bgAbbrLower)) {
-      return true;
-    }
+    return validBgs.includes(run.background_abbr) || validBgs.some(b => b.toLowerCase() === run._bgAbbrLower);
   }
 
   // 6. God alias / abbreviation / name
@@ -711,10 +689,8 @@ async function fetchAllGamesForClientCache() {
       r._spAbbrLower = (r.species_abbr || '').toLowerCase();
       r._bgAbbrLower = (r.background_abbr || '').toLowerCase();
       r._outcomeLower = (r.outcome || '').toLowerCase();
-      const catKeywords = BG_CATEGORY_KEYWORDS[r.background_abbr] || '';
       r._haystack = [
         r.combo, r.species, r.species_abbr, r.background, r.background_abbr,
-        catKeywords,
         r.god, r.killer, r.place, r.outcome, r.char_name, r.name, r.seed,
         r.xl !== undefined ? String(r.xl) : ''
       ].filter(Boolean).join(' ').toLowerCase();

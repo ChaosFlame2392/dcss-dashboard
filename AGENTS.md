@@ -227,9 +227,9 @@ To keep table columns universal, Lowest Common Denominator (LCD), and free of ho
   - `warrior` / `warriors`: Fighter (`Fi`), Gladiator (`Gl`), Monk (`Mo`), Hunter (`Hu`), Brigand (`Br`), Skald (`Sk`), Crusader (`Cr`), Thief (`Th`).
   - `zealot` / `zealots`: Berserker (`Be`), Chaos Knight (`CK`), Cinder Acolyte (`CA`), Healer (`He`), Death Knight (`DK`), Priest (`Pr`), Paladin (`Pa`), Abyssal Knight (`AK`).
   - `mage` / `mages` / `wizard` / `caster`: Fire/Ice/Air/Earth Elementalist (`FE`, `IE`, `AE`, `EE`), Alchemist (`Al`), Conjurer (`Cj`), Enchanter (`En`), Necromancer (`Ne`), Summoner (`Su`), Hedge Wizard (`HW`), Venom Mage (`VM`).
-  - `adventurer` / `adventurers` (including typo `advneturor`): Artificer (`Ar`), Shapeshifter (`Sh`), Wanderer (`Wn`), Hexslinger (`Hs`), Warper (`Wr`), Delver (`De`), Reaver (`Re`), Forgewright (`Fw`), Stalker (`St`), Mystic (`My`), Transmuter (`Tm`), Jester (`Jr`).
+  - `adventurer` / `adventurers`: Artificer (`Ar`), Shapeshifter (`Sh`), Wanderer (`Wn`), Hexslinger (`Hs`), Warper (`Wr`), Delver (`De`), Reaver (`Re`), Forgewright (`Fw`), Stalker (`St`), Mystic (`My`), Transmuter (`Tm`), Jester (`Jr`).
   - `warrior-mage` / `warrior mage` / `hybrid`: Enchanter (`En`), Hexslinger (`Hs`), Warper (`Wr`), Reaver (`Re`), Stalker (`St`), Skald (`Sk`), Crusader (`Cr`).
-  - `elementalist` / `elementalists` (including typo `elementatlists`): Fire, Ice, Air, and Earth Elementalist (`FE`, `IE`, `AE`, `EE`).
+  - `elementalist` / `elementalists`: Fire, Ice, Air, and Earth Elementalist (`FE`, `IE`, `AE`, `EE`).
 - **24-Hour Time Format:** All table timestamp cells (`formatShortDateTime`) and popover detail timestamps (`formatFullDateTime`) display timestamps strictly in 24-hour format (`HH:MM:SS`), avoiding 12-hour AM/PM markers.
 
 

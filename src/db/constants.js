@@ -135,27 +135,18 @@ const CATEGORY_BACKGROUND_MAP = {
   // Adventurers
   'adventurer': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
   'adventurers': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
-  'adventuror': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
-  'adventurors': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
-  'advneturor': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
-  'advneturors': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
 
   // Warrior-Mages / Hybrids
   'warrior-mage': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
   'warrior-mages': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
   'warriormage': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
   'warriormages': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
-  'warrior mage': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
-  'warrior mages': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
   'hybrid': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
   'hybrids': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
 
   // Elementalists
   'elementalist': ['FE', 'IE', 'AE', 'EE'],
   'elementalists': ['FE', 'IE', 'AE', 'EE'],
-  'elemental': ['FE', 'IE', 'AE', 'EE'],
-  'elementatlist': ['FE', 'IE', 'AE', 'EE'],
-  'elementatlists': ['FE', 'IE', 'AE', 'EE'],
 };
 
 // All valid DCSS Gods
