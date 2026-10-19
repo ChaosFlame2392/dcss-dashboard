@@ -190,6 +190,7 @@
                 <th>Score</th>
                 <th>Turns</th>
                 <th>Duration</th>
+                <th>Speed</th>
                 <th>Outcome</th>
                 <th style="text-align: right;">Time</th>
               </tr>
@@ -374,24 +375,42 @@
     </div>
   </div>
 
-  <!-- Popover for Run Time and DecaAut Time Distribution -->
-  <div id="timePopover" class="crawl-popover time-popover" style="display: none;">
-    <div class="popover-title" id="timePopoverTitle">Run Completed</div>
+  <!-- Popover for Combo Full Form Details -->
+  <div id="runComboPopover" class="crawl-popover run-combo-popover" style="display: none;">
+    <div class="popover-title" id="runComboPopoverTitle">Full Combo Name</div>
+    <div class="popover-details-grid">
+      <div><span class="label">Code:</span> <strong id="runComboPopoverCode">-</strong></div>
+      <div><span class="label">Species:</span> <strong id="runComboPopoverSpecies">-</strong></div>
+      <div><span class="label">Background:</span> <strong id="runComboPopoverBackground">-</strong></div>
+      <div><span class="label">Character:</span> <strong id="runComboPopoverCharName">-</strong></div>
+      <div><span class="label">Level:</span> <strong id="runComboPopoverXl">-</strong></div>
+      <div><span class="label">Deity:</span> <strong id="runComboPopoverGod">-</strong></div>
+    </div>
+    <div class="time-popover-divider"></div>
+    <div class="popover-section-header">Player Combo History</div>
+    <div class="popover-stats-grid" id="runComboPopoverStats">
+      <div>Games: <strong id="runComboPopoverGames">0</strong></div>
+      <div>Wins: <strong id="runComboPopoverWins">0</strong></div>
+      <div>Win Rate: <strong id="runComboPopoverRate">0.0%</strong></div>
+      <div>Best XL: <strong id="runComboPopoverBestXl">-</strong></div>
+    </div>
+  </div>
 
-    <!-- Timestamp section -->
-    <div class="time-popover-timestamps">
-      <div><span class="label" id="timePopoverEndedLabel">Ended:</span> <strong id="timePopoverEnded">-</strong></div>
-      <div id="timePopoverStartedRow"><span class="label">Started:</span> <strong id="timePopoverStarted">-</strong></div>
+  <!-- Popover for Turn & DecaAut Action Distribution -->
+  <div id="turnDistPopover" class="crawl-popover turn-dist-popover" style="display: none;">
+    <div class="popover-title">Turn &amp; Action Distribution</div>
+    <div class="turn-dist-total-row">
+      <span class="label">Total Turns:</span> <strong id="turnDistTotalTurns">0</strong>
     </div>
 
-    <!-- DecaAut breakdown section (hidden by default) -->
-    <div id="timePopoverDecaAutSection" style="display: none;">
+    <!-- DecaAut breakdown section (visible when telemetry exists) -->
+    <div id="turnDistDecaAutSection" style="display: none;">
       <div class="time-popover-divider"></div>
-      <div class="time-dist-header">DecaAut Time Breakdown</div>
+      <div class="time-dist-header">DecaAut Action Breakdown</div>
 
       <!-- Visual segmented bar -->
       <div class="time-dist-bar-wrapper">
-        <div class="time-dist-bar" id="timeDistBar"></div>
+        <div class="time-dist-bar" id="turnDistBar"></div>
       </div>
 
       <!-- Grid items for Tactical, Auto-Explore, Inter-Travel, Resting -->
@@ -399,35 +418,72 @@
         <div class="time-dist-item tactical">
           <span class="dot"></span>
           <span class="name">Tactical:</span>
-          <strong id="timeDistTacticalPct">0%</strong>
-          <span class="raw" id="timeDistTacticalRaw">(0 daAuts)</span>
+          <strong id="turnDistTacticalPct">0%</strong>
+          <span class="raw" id="turnDistTacticalRaw">(0 daAuts)</span>
         </div>
         <div class="time-dist-item explore">
           <span class="dot"></span>
           <span class="name">Auto-Explore:</span>
-          <strong id="timeDistExplorePct">0%</strong>
-          <span class="raw" id="timeDistExploreRaw">(0 daAuts)</span>
+          <strong id="turnDistExplorePct">0%</strong>
+          <span class="raw" id="turnDistExploreRaw">(0 daAuts)</span>
         </div>
         <div class="time-dist-item travel">
           <span class="dot"></span>
           <span class="name">Inter-Travel:</span>
-          <strong id="timeDistTravelPct">0%</strong>
-          <span class="raw" id="timeDistTravelRaw">(0 daAuts)</span>
+          <strong id="turnDistTravelPct">0%</strong>
+          <span class="raw" id="turnDistTravelRaw">(0 daAuts)</span>
         </div>
         <div class="time-dist-item resting">
           <span class="dot"></span>
           <span class="name">Resting:</span>
-          <strong id="timeDistRestingPct">0%</strong>
-          <span class="raw" id="timeDistRestingRaw">(0 daAuts)</span>
+          <strong id="turnDistRestingPct">0%</strong>
+          <span class="raw" id="turnDistRestingRaw">(0 daAuts)</span>
         </div>
       </div>
 
       <!-- Slowest levels list container -->
-      <div id="timeSlowestLevelsWrapper" style="display: none;">
+      <div id="turnDistSlowestLevelsWrapper" style="display: none;">
         <div class="time-popover-divider"></div>
         <div class="time-slowest-title">Slowest Levels:</div>
-        <div id="timeSlowestLevelsList" class="time-slowest-list"></div>
+        <div id="turnDistSlowestLevelsList" class="time-slowest-list"></div>
       </div>
+    </div>
+
+    <!-- Notice when DecaAut telemetry is not present -->
+    <div id="turnDistNoDecaAutNotice" style="display: none;">
+      <div class="time-popover-divider"></div>
+      <div style="color: var(--muted-foreground); font-size: 0.75rem;">Action distribution telemetry available in DCSS 0.35+</div>
+    </div>
+  </div>
+
+  <!-- Popover for Speed & Pace Analytics -->
+  <div id="speedStatsPopover" class="crawl-popover speed-stats-popover" style="display: none;">
+    <div class="popover-title">Speed &amp; Pace Analytics</div>
+    <div class="speed-popover-grid">
+      <div><span class="label">Turn Speed:</span> <strong id="speedPopoverTurnSpeed">N/A</strong></div>
+      <div><span class="label">Pace / Delay:</span> <strong id="speedPopoverPace">N/A</strong></div>
+      <div><span class="label">Real Duration:</span> <strong id="speedPopoverDuration">-</strong></div>
+      <div><span class="label">Total Turns:</span> <strong id="speedPopoverTurns">0</strong></div>
+    </div>
+
+    <div id="speedPopoverDecaAutSection" style="display: none;">
+      <div class="time-popover-divider"></div>
+      <div class="popover-section-header">DecaAut Movement &amp; Level Metrics</div>
+      <div class="speed-popover-grid">
+        <div><span class="label">Tactical Actions:</span> <strong id="speedPopoverTacticalDa">-</strong></div>
+        <div><span class="label">Levels Visited:</span> <strong id="speedPopoverLevelsVisited">-</strong></div>
+        <div><span class="label">Mean Time / Level:</span> <strong id="speedPopoverMeanPerLevel">-</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Popover for Run Timestamps -->
+  <div id="timePopover" class="crawl-popover time-popover" style="display: none;">
+    <div class="popover-title" id="timePopoverTitle">Run Completed</div>
+    <div class="time-popover-timestamps">
+      <div><span class="label" id="timePopoverEndedLabel">Ended:</span> <strong id="timePopoverEnded">-</strong></div>
+      <div id="timePopoverStartedRow"><span class="label">Started:</span> <strong id="timePopoverStarted">-</strong></div>
+      <div><span class="label">Real Duration:</span> <strong id="timePopoverDuration">-</strong></div>
     </div>
   </div>
 

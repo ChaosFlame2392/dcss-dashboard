@@ -977,8 +977,8 @@ table.games-table tr:hover {
   line-height: 1.45;
 }
 
-/* Time Popover & DecaAut Distribution */
-.time-popover {
+/* Crawl Retro Terminal Popovers */
+.crawl-popover {
   position: fixed !important;
   background-color: #0e0a14;
   border: 1px solid var(--border-strong);
@@ -987,11 +987,67 @@ table.games-table tr:hover {
   padding: 0.85rem;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.9), 0 0 10px rgba(252, 233, 79, 0.15);
   z-index: 99999;
-  min-width: 290px;
-  max-width: 360px;
+  min-width: 280px;
+  max-width: 380px;
   pointer-events: none;
   font-family: var(--font-mono);
   font-size: 0.8rem;
+}
+
+.run-combo-popover {
+  min-width: 300px;
+  max-width: 360px;
+}
+
+.turn-dist-popover {
+  min-width: 300px;
+  max-width: 380px;
+}
+
+.speed-stats-popover {
+  min-width: 290px;
+  max-width: 360px;
+}
+
+.time-popover {
+  min-width: 260px;
+  max-width: 340px;
+}
+
+.popover-details-grid,
+.popover-stats-grid,
+.speed-popover-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.popover-details-grid .label,
+.speed-popover-grid .label,
+.turn-dist-total-row .label {
+  color: var(--muted-foreground);
+}
+
+.popover-section-header {
+  font-weight: 700;
+  color: var(--page-heading);
+  font-size: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.turn-dist-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.turn-dist-total-row strong {
+  color: var(--accent);
+  font-size: 0.85rem;
 }
 
 .time-popover-timestamps {
@@ -1110,12 +1166,18 @@ table.games-table tr:hover {
   color: var(--accent);
 }
 
-/* Hoverable Time Cell in Runs Tables */
+/* Hoverable Cells in Runs Tables */
+td.run-combo-col,
+td.run-turns-col,
+td.run-speed-col,
 td.run-time-col {
   cursor: pointer;
   transition: color 0.1s ease;
 }
 
+td.run-combo-col:hover,
+td.run-turns-col:hover,
+td.run-speed-col:hover,
 td.run-time-col:hover {
   color: var(--page-heading) !important;
   text-decoration: underline;
