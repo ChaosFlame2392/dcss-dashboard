@@ -268,6 +268,7 @@ function sync(db, options = {}) {
       turns = excluded.turns,
       aut = excluded.aut,
       duration_seconds = excluded.duration_seconds,
+      start_time = excluded.start_time,
       end_time = excluded.end_time,
       place = excluded.place,
       branch = excluded.branch,

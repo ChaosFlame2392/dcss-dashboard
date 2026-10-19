@@ -138,6 +138,61 @@ const DCSS_BACKGROUNDS = [
   { abbr: 'VM', name: 'Venom Mage', category: 'Mages', trunk: false },
 ];
 
+// Background Categories & Search Synonyms Mapping
+const CATEGORY_BACKGROUND_MAP = {
+  // Warriors
+  'warrior': ['Fi', 'Gl', 'Mo', 'Hu', 'Br', 'Sk', 'Cr', 'Th'],
+  'warriors': ['Fi', 'Gl', 'Mo', 'Hu', 'Br', 'Sk', 'Cr', 'Th'],
+
+  // Zealots
+  'zealot': ['Be', 'CK', 'CA', 'He', 'DK', 'Pr', 'Pa', 'AK'],
+  'zealots': ['Be', 'CK', 'CA', 'He', 'DK', 'Pr', 'Pa', 'AK'],
+
+  // Mages
+  'mage': ['FE', 'IE', 'AE', 'EE', 'Al', 'Cj', 'En', 'Ne', 'Su', 'HW', 'VM'],
+  'mages': ['FE', 'IE', 'AE', 'EE', 'Al', 'Cj', 'En', 'Ne', 'Su', 'HW', 'VM'],
+  'wizard': ['FE', 'IE', 'AE', 'EE', 'Al', 'Cj', 'En', 'Ne', 'Su', 'HW', 'VM'],
+  'wizards': ['FE', 'IE', 'AE', 'EE', 'Al', 'Cj', 'En', 'Ne', 'Su', 'HW', 'VM'],
+  'caster': ['FE', 'IE', 'AE', 'EE', 'Al', 'Cj', 'En', 'Ne', 'Su', 'HW', 'VM'],
+  'casters': ['FE', 'IE', 'AE', 'EE', 'Al', 'Cj', 'En', 'Ne', 'Su', 'HW', 'VM'],
+
+  // Adventurers
+  'adventurer': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
+  'adventurers': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
+  'adventuror': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
+  'adventurors': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
+  'advneturor': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
+  'advneturors': ['Ar', 'Sh', 'Wn', 'Hs', 'Wr', 'De', 'Re', 'Fw', 'St', 'My', 'Tm', 'Jr'],
+
+  // Warrior-Mages / Hybrids
+  'warrior-mage': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+  'warrior-mages': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+  'warriormage': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+  'warriormages': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+  'warrior mage': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+  'warrior mages': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+  'hybrid': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+  'hybrids': ['En', 'Hs', 'Wr', 'Re', 'St', 'Sk', 'Cr'],
+
+  // Elementalists
+  'elementalist': ['FE', 'IE', 'AE', 'EE'],
+  'elementalists': ['FE', 'IE', 'AE', 'EE'],
+  'elemental': ['FE', 'IE', 'AE', 'EE'],
+  'elementatlist': ['FE', 'IE', 'AE', 'EE'],
+  'elementatlists': ['FE', 'IE', 'AE', 'EE'],
+};
+
+const BG_CATEGORY_KEYWORDS = {};
+for (const [catName, bgs] of Object.entries(CATEGORY_BACKGROUND_MAP)) {
+  for (const bg of bgs) {
+    if (!BG_CATEGORY_KEYWORDS[bg]) BG_CATEGORY_KEYWORDS[bg] = [];
+    BG_CATEGORY_KEYWORDS[bg].push(catName);
+  }
+}
+for (const bg in BG_CATEGORY_KEYWORDS) {
+  BG_CATEGORY_KEYWORDS[bg] = BG_CATEGORY_KEYWORDS[bg].join(' ');
+}
+
 const UNAVAILABLE_COMBOS = new Set([
   'GhTm', 'MuTm', 'GhSh', 'MuSh', 'DgMo', 'DgCK', 'DgCA', 'DgBe', 'DgAK',
   'FeHu', 'FeGl', 'FeBr', 'FeHs', 'PoSh', 'ReSh'
@@ -596,7 +651,15 @@ function matchesToken(run, token) {
     if (run._bgLower === token || run._bgAbbrLower === BG_BY_NAME[token].abbr.toLowerCase()) return true;
   }
 
-  // 5. God alias / abbreviation / name
+  // 5. Background Category (e.g. 'warrior', 'mage', 'warrior-mage', 'elementalists', 'adventurer', 'zealot')
+  if (CATEGORY_BACKGROUND_MAP[token]) {
+    const validBgs = CATEGORY_BACKGROUND_MAP[token];
+    if (validBgs.includes(run.background_abbr) || validBgs.some(b => b.toLowerCase() === run._bgAbbrLower)) {
+      return true;
+    }
+  }
+
+  // 6. God alias / abbreviation / name
   if (token === 'atheist' || token === 'none') {
     if (!run.god || run.god.trim() === '') return true;
   }
@@ -607,10 +670,10 @@ function matchesToken(run, token) {
   }
   if (run._godLower && run._godLower.trim().startsWith(token)) return true;
 
-  // 6. Win
+  // 7. Win
   if ((token === 'win' || token === 'won') && run.is_win) return true;
 
-  // 7. Fast single-pass substring search via precomputed haystack
+  // 8. Fast single-pass substring search via precomputed haystack
   if (run._haystack) {
     return run._haystack.includes(token);
   }
@@ -648,8 +711,10 @@ async function fetchAllGamesForClientCache() {
       r._spAbbrLower = (r.species_abbr || '').toLowerCase();
       r._bgAbbrLower = (r.background_abbr || '').toLowerCase();
       r._outcomeLower = (r.outcome || '').toLowerCase();
+      const catKeywords = BG_CATEGORY_KEYWORDS[r.background_abbr] || '';
       r._haystack = [
         r.combo, r.species, r.species_abbr, r.background, r.background_abbr,
+        catKeywords,
         r.god, r.killer, r.place, r.outcome, r.char_name, r.name, r.seed,
         r.xl !== undefined ? String(r.xl) : ''
       ].filter(Boolean).join(' ').toLowerCase();
@@ -667,15 +732,26 @@ function applyClientFilter() {
   const rawSearch = (state.runsSearch || '').trim();
   const winsOnly = state.runsWinsOnly;
 
-  // Multi-token splitting by spaces, commas, or carets ^
-  const tokens = rawSearch
-    ? rawSearch.split(/[\s,\^]+/).map(t => t.trim().toLowerCase()).filter(Boolean)
+  // Normalize compound phrases like 'warrior mage' to 'warrior-mage'
+  const normalizedSearch = rawSearch
+    ? rawSearch.replace(/\bwarrior\s+mage(s)?\b/gi, 'warrior-mage$1')
+    : '';
+
+  // Multi-term OR search with comma (,), pipe (|), or ' or ' (case-insensitive)
+  // Example: 'Cj or Elementalist', 'Cj, Elementalist', 'Cj | Elementalist', 'Cj, EE'
+  const orClauses = normalizedSearch
+    ? normalizedSearch
+        .split(/,\s*|\s*\|\s*|\s+or\s+/i)
+        .map(term => term.trim())
+        .filter(Boolean)
+        .map(term => term.split(/\s+/).map(t => t.trim().toLowerCase()).filter(Boolean))
+        .filter(tokens => tokens.length > 0)
     : [];
 
   state.filteredGames = state.allGames.filter((run) => {
     if (winsOnly && !run.is_win) return false;
-    if (tokens.length === 0) return true;
-    return runMatchesAllTokens(run, tokens);
+    if (orClauses.length === 0) return true;
+    return orClauses.some(tokens => runMatchesAllTokens(run, tokens));
   });
 
   // In-memory instant multi-column sorting
@@ -1541,14 +1617,13 @@ function formatFullDateTime(isoString) {
   if (!isoString) return '-';
   const d = new Date(isoString);
   if (isNaN(d.getTime())) return '-';
-  return d.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const day = d.getDate();
+  const year = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${month} ${day}, ${year} ${hh}:${mm}:${ss}`;
 }
 
 function extractTimeDistFromText(content) {
@@ -1692,75 +1767,49 @@ function showTurnDistPopover(element, runId) {
   const run = findRunById(runId);
   if (!run) return;
 
+  const dist = getRunTimeDist(run);
+  const hasTimeDist = dist && (dist.total_decaauts > 0 || (dist.tactical_decaauts + dist.explore_decaauts + dist.inter_travel_decaauts + dist.resting_decaauts > 0));
+
+  // If a run does not have decaaut telemetry, do not show popover at all
+  if (!hasTimeDist) {
+    hideAllTablePopovers();
+    return;
+  }
+
   const popover = document.getElementById('turnDistPopover');
   if (!popover) return;
 
   hideAllTablePopovers();
 
-  const totalTurnsEl = document.getElementById('turnDistTotalTurns');
-  if (totalTurnsEl) {
-    totalTurnsEl.textContent = `${(run.turns || 0).toLocaleString()} turns`;
+  const bar = document.getElementById('turnDistBar');
+  if (bar) {
+    bar.innerHTML = `
+      <div class="time-dist-seg-tactical" style="flex: ${dist.tactical_decaauts};" title="Tactical: ${dist.tactical_pct}%"></div>
+      <div class="time-dist-seg-explore" style="flex: ${dist.explore_decaauts};" title="Auto-Explore: ${dist.explore_pct}%"></div>
+      <div class="time-dist-seg-travel" style="flex: ${dist.inter_travel_decaauts};" title="Inter-Travel: ${dist.inter_travel_pct}%"></div>
+      <div class="time-dist-seg-resting" style="flex: ${dist.resting_decaauts};" title="Resting: ${dist.resting_pct}%"></div>
+    `;
   }
 
-  const dist = getRunTimeDist(run);
-  const hasTimeDist = dist && (dist.total_decaauts > 0 || (dist.tactical_decaauts + dist.explore_decaauts + dist.inter_travel_decaauts + dist.resting_decaauts > 0));
+  const tacticalPctEl = document.getElementById('turnDistTacticalPct');
+  const tacticalRawEl = document.getElementById('turnDistTacticalRaw');
+  if (tacticalPctEl) tacticalPctEl.textContent = `${dist.tactical_pct ?? 0}%`;
+  if (tacticalRawEl) tacticalRawEl.textContent = `(${Number(dist.tactical_decaauts || 0).toLocaleString()} turns)`;
 
-  const decaAutSection = document.getElementById('turnDistDecaAutSection');
-  const noDecaAutNotice = document.getElementById('turnDistNoDecaAutNotice');
+  const explorePctEl = document.getElementById('turnDistExplorePct');
+  const exploreRawEl = document.getElementById('turnDistExploreRaw');
+  if (explorePctEl) explorePctEl.textContent = `${dist.explore_pct ?? 0}%`;
+  if (exploreRawEl) exploreRawEl.textContent = `(${Number(dist.explore_decaauts || 0).toLocaleString()} turns)`;
 
-  if (hasTimeDist) {
-    if (decaAutSection) decaAutSection.style.display = 'block';
-    if (noDecaAutNotice) noDecaAutNotice.style.display = 'none';
+  const travelPctEl = document.getElementById('turnDistTravelPct');
+  const travelRawEl = document.getElementById('turnDistTravelRaw');
+  if (travelPctEl) travelPctEl.textContent = `${dist.inter_travel_pct ?? 0}%`;
+  if (travelRawEl) travelRawEl.textContent = `(${Number(dist.inter_travel_decaauts || 0).toLocaleString()} turns)`;
 
-    const bar = document.getElementById('turnDistBar');
-    if (bar) {
-      bar.innerHTML = `
-        <div class="time-dist-seg-tactical" style="flex: ${dist.tactical_decaauts};" title="Tactical: ${dist.tactical_pct}%"></div>
-        <div class="time-dist-seg-explore" style="flex: ${dist.explore_decaauts};" title="Auto-Explore: ${dist.explore_pct}%"></div>
-        <div class="time-dist-seg-travel" style="flex: ${dist.inter_travel_decaauts};" title="Inter-Travel: ${dist.inter_travel_pct}%"></div>
-        <div class="time-dist-seg-resting" style="flex: ${dist.resting_decaauts};" title="Resting: ${dist.resting_pct}%"></div>
-      `;
-    }
-
-    const tacticalPctEl = document.getElementById('turnDistTacticalPct');
-    const tacticalRawEl = document.getElementById('turnDistTacticalRaw');
-    if (tacticalPctEl) tacticalPctEl.textContent = `${dist.tactical_pct ?? 0}%`;
-    if (tacticalRawEl) tacticalRawEl.textContent = `(${Number(dist.tactical_decaauts || 0).toLocaleString()} daAuts)`;
-
-    const explorePctEl = document.getElementById('turnDistExplorePct');
-    const exploreRawEl = document.getElementById('turnDistExploreRaw');
-    if (explorePctEl) explorePctEl.textContent = `${dist.explore_pct ?? 0}%`;
-    if (exploreRawEl) exploreRawEl.textContent = `(${Number(dist.explore_decaauts || 0).toLocaleString()} daAuts)`;
-
-    const travelPctEl = document.getElementById('turnDistTravelPct');
-    const travelRawEl = document.getElementById('turnDistTravelRaw');
-    if (travelPctEl) travelPctEl.textContent = `${dist.inter_travel_pct ?? 0}%`;
-    if (travelRawEl) travelRawEl.textContent = `(${Number(dist.inter_travel_decaauts || 0).toLocaleString()} daAuts)`;
-
-    const restingPctEl = document.getElementById('turnDistRestingPct');
-    const restingRawEl = document.getElementById('turnDistRestingRaw');
-    if (restingPctEl) restingPctEl.textContent = `${dist.resting_pct ?? 0}%`;
-    if (restingRawEl) restingRawEl.textContent = `(${Number(dist.resting_decaauts || 0).toLocaleString()} daAuts)`;
-
-    const slowestWrapper = document.getElementById('turnDistSlowestLevelsWrapper');
-    const slowestList = document.getElementById('turnDistSlowestLevelsList');
-    if (slowestWrapper && slowestList) {
-      if (dist.slowest_levels && dist.slowest_levels.length > 0) {
-        slowestWrapper.style.display = 'block';
-        slowestList.innerHTML = dist.slowest_levels.slice(0, 5).map(lvl => `
-          <div class="time-slowest-row">
-            <span>${escapeHtml(lvl.level || lvl.place)}</span>
-            <strong>${(lvl.daAuts || 0).toLocaleString()} daAuts</strong>
-          </div>
-        `).join('');
-      } else {
-        slowestWrapper.style.display = 'none';
-      }
-    }
-  } else {
-    if (decaAutSection) decaAutSection.style.display = 'none';
-    if (noDecaAutNotice) noDecaAutNotice.style.display = 'block';
-  }
+  const restingPctEl = document.getElementById('turnDistRestingPct');
+  const restingRawEl = document.getElementById('turnDistRestingRaw');
+  if (restingPctEl) restingPctEl.textContent = `${dist.resting_pct ?? 0}%`;
+  if (restingRawEl) restingRawEl.textContent = `(${Number(dist.resting_decaauts || 0).toLocaleString()} turns)`;
 
   positionClampedPopover(popover, element, false);
 }
@@ -1781,8 +1830,6 @@ function showSpeedPopover(element, runId) {
 
   const turnSpeedEl = document.getElementById('speedPopoverTurnSpeed');
   const paceEl = document.getElementById('speedPopoverPace');
-  const durEl = document.getElementById('speedPopoverDuration');
-  const turnsEl = document.getElementById('speedPopoverTurns');
 
   if (turnSpeedEl) {
     turnSpeedEl.textContent = run.turn_speed ? `${run.turn_speed.toFixed(2)} turns / sec` : 'N/A';
@@ -1798,9 +1845,6 @@ function showSpeedPopover(element, runId) {
     }
   }
 
-  if (durEl) durEl.textContent = run.duration_formatted || '-';
-  if (turnsEl) turnsEl.textContent = (run.turns || 0).toLocaleString();
-
   const dist = getRunTimeDist(run);
   const hasTimeDist = dist && (dist.total_decaauts > 0 || (dist.tactical_decaauts + dist.explore_decaauts + dist.inter_travel_decaauts + dist.resting_decaauts > 0));
   const decaAutSection = document.getElementById('speedPopoverDecaAutSection');
@@ -1808,12 +1852,10 @@ function showSpeedPopover(element, runId) {
   if (hasTimeDist) {
     if (decaAutSection) decaAutSection.style.display = 'block';
     const tacticalEl = document.getElementById('speedPopoverTacticalDa');
-    const levelsEl = document.getElementById('speedPopoverLevelsVisited');
     const meanEl = document.getElementById('speedPopoverMeanPerLevel');
 
-    if (tacticalEl) tacticalEl.textContent = `${dist.tactical_decaauts.toLocaleString()} daAuts (${dist.tactical_pct}%)`;
-    if (levelsEl) levelsEl.textContent = `${dist.levels_seen} levels`;
-    if (meanEl) meanEl.textContent = `${dist.mean_per_level} daAuts / level`;
+    if (tacticalEl) tacticalEl.textContent = `${Number(dist.tactical_decaauts || 0).toLocaleString()} turns (${dist.tactical_pct ?? 0}%)`;
+    if (meanEl) meanEl.textContent = `${dist.mean_per_level ?? 0} daAuts / level`;
   } else {
     if (decaAutSection) decaAutSection.style.display = 'none';
   }
@@ -1841,12 +1883,9 @@ function showTimePopover(element, runId) {
   const endedEl = document.getElementById('timePopoverEnded');
   const startedEl = document.getElementById('timePopoverStarted');
   const startedRow = document.getElementById('timePopoverStartedRow');
-  const durEl = document.getElementById('timePopoverDuration');
 
   if (titleEl) {
-    titleEl.textContent = isActive
-      ? 'Active Ongoing Run'
-      : (run.is_win ? 'Victory Run Completed' : 'Run Completed');
+    titleEl.textContent = isActive ? 'Active Ongoing Run' : 'Run Completed';
   }
 
   if (endedLabel) {
@@ -1865,10 +1904,6 @@ function showTimePopover(element, runId) {
     } else {
       startedRow.style.display = 'none';
     }
-  }
-
-  if (durEl) {
-    durEl.textContent = run.duration_formatted || '-';
   }
 
   positionClampedPopover(popover, element, true);
@@ -1968,8 +2003,8 @@ function rollCombo(mode = 'any') {
           species: sp ? sp.name : spAbbr,
           background: bg ? bg.name : bgAbbr,
           mode: 'Recommended',
-          badge: 'Official Recommended',
-          note: 'Official in-game character creation recommendation',
+          badge: 'Recommended',
+          note: 'High-synergy starter combination',
         };
       });
     } else {
@@ -1978,7 +2013,7 @@ function rollCombo(mode = 'any') {
         species: r.species,
         background: r.background,
         mode: 'Recommended',
-        badge: 'Official Recommended',
+        badge: 'Recommended',
         note: r.note,
       }));
     }
@@ -2040,7 +2075,9 @@ function rollCombo(mode = 'any') {
   let statsText = '';
 
   if (mode === 'recommended') {
-    statsText = `Official DCSS In-Game Recommendation · ${picked.note || 'High-synergy starter combination'}`;
+    statsText = picked.note && picked.note !== 'Official in-game character creation recommendation'
+      ? `DCSS Recommended Combo · ${picked.note}`
+      : 'DCSS Recommended Combo';
   } else if (mode === 'unwon') {
     statsText = `Played ${picked.games} game${picked.games > 1 ? 's' : ''} · Max XL ${picked.maxXl} · Best Score: ${(picked.maxScore || 0).toLocaleString()}`;
   } else if (mode === 'unplayed') {

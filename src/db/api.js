@@ -16,6 +16,7 @@ const {
   parseDcssVersion,
   compareVersions,
   matchesVersionFilter,
+  CATEGORY_BACKGROUND_MAP,
 } = require('./constants');
 
 /**
@@ -246,23 +247,65 @@ function buildWhereClause(filter = {}) {
     }
   }
 
-  // Search keyword (matches combo, name, killer, place, outcome, char_name, god, seed)
+  // Search keyword (matches combo, name, killer, place, outcome, char_name, god, seed, and background categories)
+  // Supports multi-term OR search separated by ' or ' (case-insensitive), '|', or ','
   const searchQuery = filter.q || filter.search;
   if (searchQuery && String(searchQuery).trim()) {
-    const term = `%${String(searchQuery).trim().toLowerCase()}%`;
-    conditions.push(`(
-      LOWER(combo) LIKE ? OR
-      LOWER(name) LIKE ? OR
-      LOWER(killer) LIKE ? OR
-      LOWER(place) LIKE ? OR
-      LOWER(outcome) LIKE ? OR
-      LOWER(char_name) LIKE ? OR
-      LOWER(god) LIKE ? OR
-      LOWER(species) LIKE ? OR
-      LOWER(background) LIKE ? OR
-      seed LIKE ?
-    )`);
-    params.push(term, term, term, term, term, term, term, term, term, term);
+    const normalizedQuery = String(searchQuery)
+      .replace(/\bwarrior\s+mage(s)?\b/gi, 'warrior-mage$1');
+    const rawTerms = normalizedQuery
+      .split(/\s+or\s+|[|,]/i)
+      .map(t => t.trim())
+      .filter(Boolean);
+
+    if (rawTerms.length > 0) {
+      const termClauses = [];
+      for (const t of rawTerms) {
+        const cleanTerm = t.toLowerCase();
+        const catBgs = CATEGORY_BACKGROUND_MAP[cleanTerm];
+        if (catBgs && catBgs.length > 0) {
+          const placeholders = catBgs.map(() => '?').join(',');
+          const term = `%${cleanTerm}%`;
+          termClauses.push(`(
+            background_abbr IN (${placeholders}) OR
+            LOWER(combo) LIKE ? OR
+            LOWER(name) LIKE ? OR
+            LOWER(killer) LIKE ? OR
+            LOWER(place) LIKE ? OR
+            LOWER(outcome) LIKE ? OR
+            LOWER(char_name) LIKE ? OR
+            LOWER(god) LIKE ? OR
+            LOWER(species) LIKE ? OR
+            LOWER(background) LIKE ? OR
+            seed LIKE ?
+          )`);
+          for (const bg of catBgs) {
+            params.push(bg);
+          }
+          for (let i = 0; i < 10; i++) {
+            params.push(term);
+          }
+        } else {
+          const term = `%${cleanTerm}%`;
+          termClauses.push(`(
+            LOWER(combo) LIKE ? OR
+            LOWER(name) LIKE ? OR
+            LOWER(killer) LIKE ? OR
+            LOWER(place) LIKE ? OR
+            LOWER(outcome) LIKE ? OR
+            LOWER(char_name) LIKE ? OR
+            LOWER(god) LIKE ? OR
+            LOWER(species) LIKE ? OR
+            LOWER(background) LIKE ? OR
+            seed LIKE ?
+          )`);
+          for (let i = 0; i < 10; i++) {
+            params.push(term);
+          }
+        }
+      }
+      conditions.push(`(${termClauses.join(' OR ')})`);
+    }
   }
 
   return {
@@ -852,15 +895,19 @@ function getActiveRun(db) {
 }
 
 /**
- * 5. getSuggestions()
+ * 5. getSuggestions(filter)
  * Recommends unwon combos and unplayed combos based on player history
- * and valid DCSS combinations.
+ * and valid DCSS combinations. Optionally filtered by version.
  */
-function getSuggestions(db) {
+function getSuggestions(db, filter = {}) {
+  const normFilter = typeof filter === 'string' ? { version: filter } : (filter || {});
+  const versionFilter = (normFilter.version && normFilter.version !== 'all') ? { version: normFilter.version } : {};
+  const { whereClause: versionWhere, params: versionParams } = buildWhereClause(versionFilter);
+
   const trunkSpecies = SPECIES.filter(s => s.trunk);
   const trunkBackgrounds = BACKGROUNDS.filter(b => b.trunk);
 
-  // Get player stats for all combos
+  // Get player stats for all combos (optionally filtered by version)
   const matrixQuery = `
     SELECT
       combo,
@@ -874,10 +921,10 @@ function getSuggestions(db) {
       MAX(xl) as max_xl,
       MAX(runes_count) as max_runes
     FROM games
-    WHERE is_active = 0
+    ${versionWhere}
     GROUP BY combo
   `;
-  const rows = db.prepare(matrixQuery).all();
+  const rows = db.prepare(matrixQuery).all(...versionParams);
   const playerCombos = new Map(rows.map(r => [r.combo, r]));
 
   // Won species and backgrounds
@@ -894,11 +941,14 @@ function getSuggestions(db) {
   }
 
   // Gods won
+  const wonGodsWhere = versionWhere
+    ? `${versionWhere} AND is_win = 1 AND god IS NOT NULL AND god != ''`
+    : `WHERE is_active = 0 AND is_win = 1 AND god IS NOT NULL AND god != ''`;
   const wonGodsRows = db.prepare(`
     SELECT DISTINCT god
     FROM games
-    WHERE is_active = 0 AND is_win = 1 AND god IS NOT NULL AND god != ''
-  `).all();
+    ${wonGodsWhere}
+  `).all(...versionParams);
   const wonGods = new Set(wonGodsRows.map(r => r.god));
 
   // 1. Unwon combos (played at least once, but zero wins)
