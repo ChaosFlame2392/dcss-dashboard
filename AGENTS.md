@@ -13,7 +13,7 @@
 ### Core Tenets
 1. **Zero External Runtime Heavyweight Dependencies:** Uses Node.js native `node:sqlite` (built into Node.js 22.5+) and minimal Express 5. No C++ compilers, `node-gyp`, or heavy frontend build pipelines required.
 2. **Zero-Lag Responsiveness (0ms In-Memory Client Search):** The frontend fetches runs into memory on load. Filtering, searching, sorting, and tab-switching happen instantaneously in single-frame DOM updates without round-trip network lag.
-3. **Strict Read-Only Data Safety:** Under no circumstances does the application write to, modify, or lock DCSS save files (`.cs`), logfiles, or morgue directories.
+3. **Strict Read-Only Data Safety & Zero Save Access:** Under no circumstances does the application open, read, stat, write to, modify, or lock DCSS save files (`.cs`). Binary save files are strictly ignored and never accessed. Completed logs (`logfile*`) and morgue character dumps (`morgue/*.txt`) are read strictly in read-only mode.
 4. **Permanent Crawl Retro Aesthetic:** Monospace terminal font stack with authentic Crawl terminal colors (`#040204` black, `#fce94f` gold, `#8ae234` green, `#34e2e2` cyan, `#fd59fa` magenta).
 5. **Cross-Platform Compatibility:** Native out-of-the-box support for macOS (`~/Library/Application Support/...`) and Linux (`~/.crawl`, `~/.local/share/crawl`, Flatpak, XDG), plus manual directory override via `DCSS_DIR`.
 
@@ -49,10 +49,14 @@ dcss-dashboard/
 
 ## 3. Data Safety & DCSS File System Protocols
 
-The application monitors three DCSS data sources:
-1. **`logfile*` (xlog files):** Colon-delimited key-value event logs generated upon character deaths or wins. The sync engine validates boundary newlines before ingestion to prevent reading partially written lines during an active crawl session.
-2. **`morgue/*.txt`:** Full game summaries. Read strictly with `fs.readFileSync(..., 'utf8')`.
-3. **`saves/*.cs`:** Active character save files. The app checks for the existence of `.cs` files to detect ongoing runs and reads the corresponding active character dump from the morgue directory.
+The application monitors two DCSS data sources:
+1. **`logfile*` (xlog files):** Colon-delimited key-value event logs generated upon character deaths or wins (typically residing in the `saves/` folder on standard installs or directly in the crawl directory). The sync engine validates boundary newlines before ingestion to prevent reading partially written lines during an active crawl session. Read strictly in read-only mode.
+2. **`morgue/*.txt`:** Full game summaries and active character dumps. Read strictly with `fs.readFileSync(..., 'utf8')`.
+   - **Finished Morgues (`morgue-*.txt`):** Game summary dumps generated upon character deaths or wins.
+   - **Active Character Dumps (`<CharacterName>.txt`):** Ongoing runs are discovered **SOLELY** from character dump files emitted by Crawl into `morgue/`. Stale dump detection compares timestamps against finished morgue dumps without touching save files.
+
+> [!IMPORTANT]
+> **Zero Save Access Protocol (`.cs`):** Under no circumstances does the application open, read, stat, scan, or access DCSS save files (`.cs`). Binary save files are strictly untouched and completely ignored by the sync engine. Ongoing games are detected purely via text character dumps in `morgue/`.
 
 ### Directory Discovery Sequence (`src/db/sync.js`)
 Candidate directories are checked in the following precedence order:
