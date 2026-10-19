@@ -175,5 +175,33 @@ To activate debug logging for troubleshooting directory discovery, sync ingestio
   - Species headers show full name, trunk/legacy status, god restrictions (if any), total games, wins, win rate, and combos completed.
 - **Clean Tooltip Presentation:** Redundant native browser `title` attributes on table cells and headers are omitted so native OS tooltips never obscure custom terminal-themed popovers.
 
+### 8.6 Semantic Versioning Engine & Dynamic Version Discovery
+- **Crawl SemVer Representation:** DCSS versions span official release tags (`0.34.1`, `0.30.2`), trunk pre-releases (`0.35-a0`, `0.35-a0-1308-g77a9b5a25e`), and directory aliases (`trunk` -> `0.35-a0`, `stable` -> `0.34.0`).
+- **Semantic Parsing & Database Indexing:** `parseDcssVersion(vStr)` decomposes versions into `{ major, minor, patch, prerelease, raw }`. SQLite schema stores `version_major`, `version_minor`, and `version_patch` with composite index `idx_games_version_nums (version_major, version_minor)` for fast filtered range queries.
+- **Pre-Release Trunk Semantics:** Standard SemVer 2.0.0 defines `0.35-a0 < 0.35.0`. In Crawl, players on pre-release `0.35-a0` expect `>= 0.35` and `0.35` to match. `compareVersions()` and `matchesVersionFilter()` evaluate major and minor numbers for major/minor version queries while preserving full patch/prerelease precedence when exact patch strings are provided.
+- **Supported Operator Filters:** Supports relational operators (`>=`, `<=`, `>`, `<`), minor releases (`0.34` matches all `0.34.x`), exact version strings, and named aliases (`stable`, `trunk`).
+- **100% Dynamic Discovery (Zero Phantom Versions):** The version dropdown is populated dynamically strictly from `SELECT DISTINCT version FROM games`. Zero hardcoded version options are shown; if a database has only 0.34 and 0.35 runs, older versions (e.g. 0.30) never appear in the dropdown.
 
-
+### 8.7 DecaAut Time Distribution & Non-Duplicative Time Popover
+- **DecaAut Telemetry in DCSS 0.35+ Trunk:** DCSS 0.35 introduced a decaaut-level timing table in morgues (`Table legend: (Time is in decaauts)`). Columns represent:
+  - Elapsed Decaauts ($A$)
+  - Non-Inter-Level Travel Decaauts ($B$)
+  - Inter-Level Travel Decaauts ($C$)
+  - Resting Decaauts ($D$)
+  - Auto-Explore Decaauts ($E$)
+  - Levels Seen ($F$)
+  - Mean Time per Level ($G$)
+- **Tactical DecaAuts Calculation:** Pure tactical time spent fighting, casting, and making decisions is calculated as:
+  $$\text{Tactical daAuts} = B - (D + E)$$
+- **Exact Proportional Distribution:**
+  - $\text{Tactical } \% = \frac{\text{Tactical daAuts}}{A} \times 100$
+  - $\text{Auto-Explore } \% = \frac{E}{A} \times 100$
+  - $\text{Inter-Travel } \% = \frac{C}{A} \times 100$
+  - $\text{Resting } \% = \frac{D}{A} \times 100$
+  - Invariant: $\text{Tactical } \% + \text{Auto-Explore } \% + \text{Inter-Travel } \% + \text{Resting } \% = 100.00\%$
+- **Portal Branch & Slowest Levels Parsing:** Slowest non-repeatable levels are parsed using non-greedy regex (`^\s*(.+?):\s*([\d,]+)\s*daAuts`) to support multi-word portal branches (e.g. `Ice Cave: 708 daAuts`).
+- **Lowest Common Denominator (LCD) Table Architecture:** Rather than adding 6 redundant columns to the main table, table columns remain universal and uncrowded. Hovering over the **Time** cell triggers a retro terminal popover:
+  - For **0.35 Trunk runs**: Renders a segmented CSS flex-ratio bar (Cyan `#34e2e2` Tactical, Green `#8ae234` Explore, Magenta `#fd59fa` Inter-Travel, Blue `#729fcf` Resting), exact percentages and raw daAuts, and slowest levels.
+  - For **0.30–0.34 runs**: DecaAut section is hidden completely. The popover displays clean, useful timestamps (ended and started / last action). **Strictly zero duplication** of adjacent table columns (no redundant Turns, Duration, or Speed).
+- **Morgue Modal Time Card:** In the Morgue Modal (`[View]`), `#morgueTimeCard` displays the visual distribution bar and metric breakdown directly above raw morgue text for runs with decaaut telemetry.
+- **Pure Information Principle:** Absolutely no hardcoded speed classifications, judgmental thresholds, or subjective speed labels ("reckless", "deliberate", "travel tax"). Pure statistics and percentages are delivered directly to the player.
