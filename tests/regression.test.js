@@ -995,5 +995,106 @@ describe('DCSS Regression Suite — Database Migration & Semantic Version Querie
   });
 });
 
+describe('DCSS Regression Suite — Multi-Term OR Search & Prebuilt Categories', () => {
+  it('correctly filters games using multi-term OR syntax (or, comma, pipe)', () => {
+    const client = createDcssDb(':memory:');
+    const db = client.rawDb;
+
+    const insert = db.prepare(`
+      INSERT INTO games (id, name, species, species_abbr, background, background_abbr, combo, char_name, score, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insert.run('g1', 'Player', 'Deep Elf', 'DE', 'Conjurer', 'Cj', 'DECj', 'DECj', 100, 0);
+    insert.run('g2', 'Player', 'Gargoyle', 'Gr', 'Earth Elementalist', 'EE', 'GrEE', 'GrEE', 200, 0);
+    insert.run('g3', 'Player', 'Minotaur', 'Mi', 'Berserker', 'Be', 'MiBe', 'MiBe', 300, 0);
+    insert.run('g4', 'Player', 'Gnoll', 'Gn', 'Fire Elementalist', 'FE', 'GnFE', 'GnFE', 400, 0);
+    insert.run('g5', 'Player', 'Kobold', 'Ko', 'Brigand', 'Br', 'KoBr', 'KoBr', 500, 0);
+
+    // 1. Search with 'or': 'Cj or EE'
+    const resOr = client.getGames({ q: 'Cj or EE' });
+    assert.strictEqual(resOr.total, 2);
+    const idsOr = resOr.games.map(g => g.id).sort();
+    assert.deepStrictEqual(idsOr, ['g1', 'g2']);
+
+    // 2. Search with comma: 'Cj, EE, FE'
+    const resComma = client.getGames({ q: 'Cj, EE, FE' });
+    assert.strictEqual(resComma.total, 3);
+    const idsComma = resComma.games.map(g => g.id).sort();
+    assert.deepStrictEqual(idsComma, ['g1', 'g2', 'g4']);
+
+    // 3. Search with pipe: 'Cj | Berserker'
+    const resPipe = client.getGames({ q: 'Cj | Berserker' });
+    assert.strictEqual(resPipe.total, 2);
+    const idsPipe = resPipe.games.map(g => g.id).sort();
+    assert.deepStrictEqual(idsPipe, ['g1', 'g3']);
+
+    client.close();
+  });
+
+  it('correctly searches prebuilt Crawl background categories and synonyms', () => {
+    const client = createDcssDb(':memory:');
+    const db = client.rawDb;
+
+    const insert = db.prepare(`
+      INSERT INTO games (id, name, species, species_abbr, background, background_abbr, combo, char_name, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insert.run('w1', 'P1', 'Minotaur', 'Mi', 'Fighter', 'Fi', 'MiFi', 'MiFi', 0);
+    insert.run('z1', 'P2', 'Troll', 'Tr', 'Berserker', 'Be', 'TrBe', 'TrBe', 0);
+    insert.run('m1', 'P3', 'Deep Elf', 'DE', 'Conjurer', 'Cj', 'DECj', 'DECj', 0);
+    insert.run('m2', 'P4', 'Gargoyle', 'Gr', 'Earth Elementalist', 'EE', 'GrEE', 'GrEE', 0);
+    insert.run('a1', 'P5', 'Spriggan', 'Sp', 'Hexslinger', 'Hs', 'SpHs', 'SpHs', 0);
+    insert.run('a2', 'P6', 'Barachi', 'Ba', 'Wanderer', 'Wn', 'BaWn', 'BaWn', 0);
+
+    // 1. Category: warrior
+    const resWarrior = client.getGames({ q: 'warrior' });
+    assert.strictEqual(resWarrior.total, 1);
+    assert.strictEqual(resWarrior.games[0].id, 'w1');
+
+    // 2. Category: zealot
+    const resZealot = client.getGames({ q: 'zealot' });
+    assert.strictEqual(resZealot.total, 1);
+    assert.strictEqual(resZealot.games[0].id, 'z1');
+
+    // 3. Category: mage (matches Conjurer and Earth Elementalist)
+    const resMage = client.getGames({ q: 'mage' });
+    assert.strictEqual(resMage.total, 2);
+    const idsMage = resMage.games.map(g => g.id).sort();
+    assert.deepStrictEqual(idsMage, ['m1', 'm2']);
+
+    // 4. Category: elementalist (matches Earth Elementalist)
+    const resElem = client.getGames({ q: 'elementalists' });
+    assert.strictEqual(resElem.total, 1);
+    assert.strictEqual(resElem.games[0].id, 'm2');
+
+    // 5. Category: warrior-mage and warrior mage (matches Hexslinger)
+    const resWm1 = client.getGames({ q: 'warrior-mage' });
+    assert.strictEqual(resWm1.total, 1);
+    assert.strictEqual(resWm1.games[0].id, 'a1');
+
+    const resWm2 = client.getGames({ q: 'warrior mage' });
+    assert.strictEqual(resWm2.total, 1);
+    assert.strictEqual(resWm2.games[0].id, 'a1');
+
+    // 6. Category: adventurer and typo advneturor (matches Hexslinger and Wanderer)
+    const resAdv1 = client.getGames({ q: 'adventurer' });
+    assert.strictEqual(resAdv1.total, 2);
+
+    const resAdv2 = client.getGames({ q: 'advneturor' });
+    assert.strictEqual(resAdv2.total, 2);
+
+    // 7. Combined OR query with category: 'Cj or elementalists'
+    const resCombined = client.getGames({ q: 'Cj or elementalists' });
+    assert.strictEqual(resCombined.total, 2);
+    const idsCombined = resCombined.games.map(g => g.id).sort();
+    assert.deepStrictEqual(idsCombined, ['m1', 'm2']);
+
+    client.close();
+  });
+});
+
+
 
 
