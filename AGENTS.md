@@ -186,7 +186,7 @@ To activate debug logging for troubleshooting directory discovery, sync ingestio
 - **Supported Operator Filters:** Supports relational operators (`>=`, `<=`, `>`, `<`), minor releases (`0.34` matches all `0.34.x`), exact version strings, and named aliases (`stable`, `trunk`).
 - **100% Dynamic Discovery (Zero Phantom Versions):** The version dropdown is populated dynamically strictly from `SELECT DISTINCT version FROM games`. Zero hardcoded version options are shown; if a database has only 0.34 and 0.35 runs, older versions (e.g. 0.30) never appear in the dropdown.
 
-### 8.7 DecaAut Time Distribution & Non-Duplicative Time Popover
+### 8.7 DecaAut Action Distribution & Key Normalization
 - **DecaAut Telemetry in DCSS 0.35+ Trunk:** DCSS 0.35 introduced a decaaut-level timing table in morgues (`Table legend: (Time is in decaauts)`). Columns represent:
   - Elapsed Decaauts ($A$)
   - Non-Inter-Level Travel Decaauts ($B$)
@@ -203,9 +203,24 @@ To activate debug logging for troubleshooting directory discovery, sync ingestio
   - $\text{Inter-Travel } \% = \frac{C}{A} \times 100$
   - $\text{Resting } \% = \frac{D}{A} \times 100$
   - Invariant: $\text{Tactical } \% + \text{Auto-Explore } \% + \text{Inter-Travel } \% + \text{Resting } \% = 100.00\%$
+- **Unified Key Normalization (`normalizeTimeDist`):** Bridges SQLite database fields (`total_decaauts`, `tactical_decaauts`, `explore_decaauts`, `inter_travel_decaauts`, `resting_decaauts`, `top_levels`) and client-side parser aliases (`elapsed_da`, `tactical_da`, `slowest_levels`), ensuring decaaut analytics render reliably in all views.
 - **Portal Branch & Slowest Levels Parsing:** Slowest non-repeatable levels are parsed using non-greedy regex (`^\s*(.+?):\s*([\d,]+)\s*daAuts`) to support multi-word portal branches (e.g. `Ice Cave: 708 daAuts`).
-- **Lowest Common Denominator (LCD) Table Architecture:** Rather than adding 6 redundant columns to the main table, table columns remain universal and uncrowded. Hovering over the **Time** cell triggers a retro terminal popover:
-  - For **0.35 Trunk runs**: Renders a segmented CSS flex-ratio bar (Cyan `#34e2e2` Tactical, Green `#8ae234` Explore, Magenta `#fd59fa` Inter-Travel, Blue `#729fcf` Resting), exact percentages and raw daAuts, and slowest levels.
-  - For **0.30–0.34 runs**: DecaAut section is hidden completely. The popover displays clean, useful timestamps (ended and started / last action). **Strictly zero duplication** of adjacent table columns (no redundant Turns, Duration, or Speed).
 - **Morgue Modal Time Card:** In the Morgue Modal (`[View]`), `#morgueTimeCard` displays the visual distribution bar and metric breakdown directly above raw morgue text for runs with decaaut telemetry.
 - **Pure Information Principle:** Absolutely no hardcoded speed classifications, judgmental thresholds, or subjective speed labels ("reckless", "deliberate", "travel tax"). Pure statistics and percentages are delivered directly to the player.
+
+### 8.8 Table Popover Suite (Combo, Turns, Speed, Time)
+To keep table columns universal, Lowest Common Denominator (LCD), and free of horizontal clutter, interactive retro terminal popovers are bound to specific data domains:
+1. **Combo Full Form Popover (`td.run-combo-col` -> `#runComboPopover`):**
+   - Displays full character combo title (e.g., `Gnoll Hexslinger`), 4-letter code (`GnHs`), full species name, background name, character name, level (`XL 8`), and deity worshipped.
+   - Summarizes player combo history from matrix data (games played, wins, win rate, best XL).
+2. **Turn Distribution Popover (`td.run-turns-col` -> `#turnDistPopover`):**
+   - Displays total in-game turns.
+   - For DCSS 0.35+ Trunk runs: Renders the segmented CSS flex-ratio bar (Cyan `#34e2e2` Tactical, Green `#8ae234` Explore, Magenta `#fd59fa` Inter-Travel, Blue `#729fcf` Resting), exact percentages and raw daAuts, and slowest levels.
+   - For 0.30–0.34 runs: Displays a clean turn summary and notes that decaaut action distribution is available in DCSS 0.35+.
+3. **Speed & Pace Analytics Popover (`td.run-speed-col` -> `#speedStatsPopover`):**
+   - Displays overall turn speed (`turns / sec`), action delay/pace (`sec / turn`), real duration, and total turns.
+   - When decaaut telemetry exists: Displays tactical action decaauts and percentage, levels visited, and mean action time per level (`daAuts / level`).
+   - Standardized across both Recent Runs and Run Explorer tables.
+4. **Time & Timestamps Popover (`td.run-time-col` -> `#timePopover`):**
+   - Dedicated strictly to run timestamps and real elapsed time (Ended, Started, Duration).
+
