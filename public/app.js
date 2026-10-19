@@ -252,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadVersions();
   loadAllData();
   initMatrixEvents();
-  initTimePopoverEvents();
+  initTablePopovers();
 
   // Delegated click handler for viewing morgue files (XSS-safe)
   document.addEventListener('click', (e) => {
@@ -883,7 +883,7 @@ function renderRecentRuns() {
 
   const runs = state.allGames.slice(0, 10);
   if (runs.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--muted-foreground); padding: 1.5rem;">No completed runs in selected period.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: var(--muted-foreground); padding: 1.5rem;">No completed runs in selected period.</td></tr>';
     return;
   }
 
@@ -898,13 +898,14 @@ function renderRecentRuns() {
 
     html += `
       <tr${winClass}>
-        <td><strong title="${escapeHtml(run.char_name || run.name || '')}">${escapeHtml(run.combo || run.char_name || '')}</strong></td>
+        <td class="run-combo-col" data-run-id="${escapeHtml(run.id)}"><strong>${escapeHtml(run.combo || run.char_name || '')}</strong></td>
         <td>${morgueBtn}</td>
         <td style="color: var(--warning);">${escapeHtml(run.god || '-')}</td>
         <td style="font-weight: 700;">${run.xl || 1}</td>
         <td>${(run.score || 0).toLocaleString()}</td>
-        <td>${(run.turns || 0).toLocaleString()}</td>
+        <td class="run-turns-col" data-run-id="${escapeHtml(run.id)}">${(run.turns || 0).toLocaleString()}</td>
         <td>${escapeHtml(run.duration_formatted || '-')}</td>
+        <td class="run-speed-col" data-run-id="${escapeHtml(run.id)}">${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
         <td>${run.is_win ? '<span class="win-badge">WON</span> ' : ''}${escapeHtml(run.outcome || 'Died')}</td>
         <td class="run-time-col" data-run-id="${escapeHtml(run.id)}">${dateStr}</td>
       </tr>
@@ -940,14 +941,14 @@ function renderExplorerRuns() {
     html += `
       <tr${winClass}>
         <td style="color: var(--muted-foreground);">${rowNum}</td>
-        <td><strong title="${escapeHtml(run.char_name || run.name || '')}">${escapeHtml(run.combo || run.char_name || '')}</strong></td>
+        <td class="run-combo-col" data-run-id="${escapeHtml(run.id)}"><strong>${escapeHtml(run.combo || run.char_name || '')}</strong></td>
         <td>${morgueBtn}</td>
         <td style="color: var(--warning);">${escapeHtml(run.god || '-')}</td>
         <td style="font-weight: 700;">${run.xl || 1}</td>
         <td>${(run.score || 0).toLocaleString()}</td>
-        <td>${(run.turns || 0).toLocaleString()}</td>
+        <td class="run-turns-col" data-run-id="${escapeHtml(run.id)}">${(run.turns || 0).toLocaleString()}</td>
         <td>${escapeHtml(run.duration_formatted || '-')}</td>
-        <td>${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
+        <td class="run-speed-col" data-run-id="${escapeHtml(run.id)}">${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
         <td>${run.is_win ? '<span class="win-badge">WON</span> ' : ''}${escapeHtml(run.outcome || 'Died')}</td>
         <td class="run-time-col" data-run-id="${escapeHtml(run.id)}">${dateStr}</td>
       </tr>
@@ -1417,27 +1418,123 @@ function filterByCombo(combo) {
   }
 }
 
-// ======================== TIME & DECAAUT POPOVER ENGINE ========================
+// ======================== TABLE POPOVER SUITE (COMBO, TURNS, SPEED, TIME) ========================
 
-function initTimePopoverEvents() {
-  document.addEventListener('mouseover', (e) => {
-    const td = e.target.closest('td.run-time-col');
-    if (td && td.dataset.runId) {
-      showTimePopover(td, td.dataset.runId);
+function findRunById(runId) {
+  if (!runId) return null;
+  return state.allGames.find(g => String(g.id) === String(runId)) ||
+         state.activeRuns.find(g => String(g.id) === String(runId)) ||
+         (state.activeRun && String(state.activeRun.id) === String(runId) ? state.activeRun : null);
+}
+
+function normalizeTimeDist(d) {
+  if (!d) return null;
+  if (typeof d === 'string') {
+    try {
+      d = JSON.parse(d);
+    } catch {
+      return null;
     }
-  });
+  }
+  if (!d || typeof d !== 'object') return null;
 
-  document.addEventListener('mouseout', (e) => {
-    const td = e.target.closest('td.run-time-col');
-    if (td) {
-      const related = e.relatedTarget;
-      if (!related || !td.contains(related)) {
-        hideTimePopover();
-      }
-    }
-  });
+  const totalDecaauts = Number(d.total_decaauts ?? d.elapsed_da ?? 0) || 0;
+  const nonTravelDecaauts = Number(d.non_travel_decaauts ?? d.non_travel_da ?? 0) || 0;
+  const tacticalDecaauts = Number(d.tactical_decaauts ?? d.tactical_da ?? 0) || 0;
+  const exploreDecaauts = Number(d.explore_decaauts ?? d.auto_explore_da ?? 0) || 0;
+  const interTravelDecaauts = Number(d.inter_travel_decaauts ?? d.inter_level_travel_da ?? 0) || 0;
+  const restingDecaauts = Number(d.resting_decaauts ?? d.resting_da ?? 0) || 0;
+  const levelsSeen = Number(d.levels_seen ?? 0) || 0;
+  const meanPerLevel = Number(d.mean_per_level ?? d.mean_time_per_level ?? 0) || 0;
 
-  window.addEventListener('scroll', hideTimePopover, { passive: true });
+  const tacticalPct = d.tactical_pct != null
+    ? Number(d.tactical_pct)
+    : (totalDecaauts > 0 ? Number(((tacticalDecaauts / totalDecaauts) * 100).toFixed(2)) : 0.0);
+  const explorePct = d.explore_pct != null
+    ? Number(d.explore_pct)
+    : (totalDecaauts > 0 ? Number(((exploreDecaauts / totalDecaauts) * 100).toFixed(2)) : 0.0);
+  const interTravelPct = d.inter_travel_pct != null
+    ? Number(d.inter_travel_pct)
+    : (totalDecaauts > 0 ? Number(((interTravelDecaauts / totalDecaauts) * 100).toFixed(2)) : 0.0);
+  const restingPct = d.resting_pct != null
+    ? Number(d.resting_pct)
+    : (totalDecaauts > 0 ? Number(((restingDecaauts / totalDecaauts) * 100).toFixed(2)) : 0.0);
+
+  const rawLevels = d.top_levels || d.slowest_levels || [];
+  const normalizedLevels = Array.isArray(rawLevels)
+    ? rawLevels.map(lvl => ({
+        place: lvl.place || lvl.level || '',
+        level: lvl.level || lvl.place || '',
+        daAuts: Number(lvl.daAuts || 0),
+      }))
+    : [];
+
+  return {
+    total_decaauts: totalDecaauts,
+    elapsed_da: totalDecaauts,
+    non_travel_decaauts: nonTravelDecaauts,
+    non_travel_da: nonTravelDecaauts,
+    tactical_decaauts: tacticalDecaauts,
+    tactical_da: tacticalDecaauts,
+    explore_decaauts: exploreDecaauts,
+    auto_explore_da: exploreDecaauts,
+    inter_travel_decaauts: interTravelDecaauts,
+    inter_level_travel_da: interTravelDecaauts,
+    resting_decaauts: restingDecaauts,
+    resting_da: restingDecaauts,
+    levels_seen: levelsSeen,
+    mean_per_level: meanPerLevel,
+    mean_time_per_level: meanPerLevel,
+    tactical_pct: tacticalPct,
+    explore_pct: explorePct,
+    inter_travel_pct: interTravelPct,
+    resting_pct: restingPct,
+    top_levels: normalizedLevels,
+    slowest_levels: normalizedLevels,
+  };
+}
+
+function getRunTimeDist(run) {
+  if (!run) return null;
+  if (run._timeDist !== undefined) return run._timeDist;
+  if (run.time_distribution) {
+    run._timeDist = normalizeTimeDist(run.time_distribution);
+    return run._timeDist;
+  }
+  run._timeDist = null;
+  return null;
+}
+
+function getComboDetails(run) {
+  const combo = run.combo || '';
+  let spAbbr = run.species_abbr || (combo.length >= 2 ? combo.slice(0, 2) : '');
+  let bgAbbr = run.background_abbr || (combo.length >= 4 ? combo.slice(2, 4) : '');
+  let spName = run.species || '';
+  let bgName = run.background || '';
+
+  if (!spName && spAbbr) {
+    const spObj = SPECIES_BY_ABBR[spAbbr.toLowerCase()];
+    if (spObj) spName = spObj.name;
+  }
+  if (!bgName && bgAbbr) {
+    const bgObj = BG_BY_ABBR[bgAbbr.toLowerCase()];
+    if (bgObj) bgName = bgObj.name;
+  }
+
+  const fullName = (spName && bgName) ? `${spName} ${bgName}` : (run.char_name || combo || 'Unknown Character');
+  const charName = run.name || (run.char_name && run.char_name !== fullName ? run.char_name : 'Player');
+
+  return {
+    combo,
+    spAbbr,
+    bgAbbr,
+    spName,
+    bgName,
+    fullName,
+    charName,
+    xl: run.xl || 1,
+    god: run.god || 'None',
+  };
 }
 
 function formatFullDateTime(isoString) {
@@ -1450,7 +1547,7 @@ function formatFullDateTime(isoString) {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit'
+    second: '2-digit',
   });
 }
 
@@ -1474,7 +1571,6 @@ function extractTimeDistFromText(content) {
   const interTravelPct = a > 0 ? Number(((c / a) * 100).toFixed(2)) : 0.0;
   const restingPct = a > 0 ? Number(((d / a) * 100).toFixed(2)) : 0.0;
 
-  // Extract slowest non-repeatable levels
   const slowestLevels = [];
   const slowestMatch = content.match(/Top non-repeatable levels by time:\s*\n([\s\S]*?)(?:\n\s*\n|\n\s*[A-Z]|$)/i);
   if (slowestMatch && slowestMatch[1]) {
@@ -1484,13 +1580,14 @@ function extractTimeDistFromText(content) {
       if (lm) {
         slowestLevels.push({
           level: lm[1].trim(),
-          daAuts: parseInt(lm[2].replace(/,/g, ''), 10) || 0
+          place: lm[1].trim(),
+          daAuts: parseInt(lm[2].replace(/,/g, ''), 10) || 0,
         });
       }
     }
   }
 
-  return {
+  return normalizeTimeDist({
     elapsed_da: a,
     non_travel_da: b,
     inter_level_travel_da: c,
@@ -1503,29 +1600,240 @@ function extractTimeDistFromText(content) {
     explore_pct: explorePct,
     inter_travel_pct: interTravelPct,
     resting_pct: restingPct,
-    slowest_levels: slowestLevels
-  };
+    slowest_levels: slowestLevels,
+  });
+}
+
+function positionClampedPopover(popover, targetEl, preferLeft = false) {
+  if (!popover || !targetEl || !targetEl.getBoundingClientRect) return;
+
+  popover.style.visibility = 'hidden';
+  popover.style.display = 'block';
+
+  const popWidth = popover.offsetWidth || 320;
+  const popHeight = popover.offsetHeight || 200;
+  const rect = targetEl.getBoundingClientRect();
+
+  let x;
+  if (preferLeft) {
+    x = rect.left - popWidth - 10;
+    if (x < 12) {
+      x = rect.right + 10;
+    }
+  } else {
+    x = rect.right + 10;
+    if (x + popWidth > window.innerWidth - 12) {
+      x = rect.left - popWidth - 10;
+    }
+  }
+
+  if (x + popWidth > window.innerWidth - 12) {
+    x = Math.max(12, window.innerWidth - popWidth - 12);
+  }
+  if (x < 12) x = 12;
+
+  let y = rect.top - 6;
+  if (y + popHeight > window.innerHeight - 12) {
+    y = Math.max(12, window.innerHeight - popHeight - 12);
+  }
+  if (y < 12) y = 12;
+
+  popover.style.left = `${Math.round(x)}px`;
+  popover.style.top = `${Math.round(y)}px`;
+  popover.style.visibility = 'visible';
+}
+
+function showComboPopover(element, runId) {
+  const run = findRunById(runId);
+  if (!run) return;
+
+  const popover = document.getElementById('runComboPopover');
+  if (!popover) return;
+
+  hideAllTablePopovers();
+
+  const details = getComboDetails(run);
+  const titleEl = document.getElementById('runComboPopoverTitle');
+  const codeEl = document.getElementById('runComboPopoverCode');
+  const spEl = document.getElementById('runComboPopoverSpecies');
+  const bgEl = document.getElementById('runComboPopoverBackground');
+  const charEl = document.getElementById('runComboPopoverCharName');
+  const xlEl = document.getElementById('runComboPopoverXl');
+  const godEl = document.getElementById('runComboPopoverGod');
+
+  if (titleEl) titleEl.textContent = details.fullName;
+  if (codeEl) codeEl.textContent = details.combo || '-';
+  if (spEl) spEl.textContent = details.spName || details.spAbbr || '-';
+  if (bgEl) bgEl.textContent = details.bgName || details.bgAbbr || '-';
+  if (charEl) charEl.textContent = details.charName || '-';
+  if (xlEl) xlEl.textContent = `XL ${details.xl}`;
+  if (godEl) godEl.textContent = details.god;
+
+  const matrixCell = state.matrixData?.matrix?.[details.combo];
+  const gamesEl = document.getElementById('runComboPopoverGames');
+  const winsEl = document.getElementById('runComboPopoverWins');
+  const rateEl = document.getElementById('runComboPopoverRate');
+  const bestXlEl = document.getElementById('runComboPopoverBestXl');
+
+  if (gamesEl) gamesEl.textContent = matrixCell ? (matrixCell.games || 0) : 0;
+  if (winsEl) winsEl.textContent = matrixCell ? (matrixCell.wins || 0) : 0;
+  if (rateEl) rateEl.textContent = matrixCell && matrixCell.games > 0 ? `${((matrixCell.winRate || 0) * 100).toFixed(1)}%` : '0.0%';
+  if (bestXlEl) bestXlEl.textContent = matrixCell && matrixCell.maxXl ? `XL ${matrixCell.maxXl}` : '-';
+
+  positionClampedPopover(popover, element, false);
+}
+
+function hideComboPopover() {
+  const popover = document.getElementById('runComboPopover');
+  if (popover) popover.style.display = 'none';
+}
+
+function showTurnDistPopover(element, runId) {
+  const run = findRunById(runId);
+  if (!run) return;
+
+  const popover = document.getElementById('turnDistPopover');
+  if (!popover) return;
+
+  hideAllTablePopovers();
+
+  const totalTurnsEl = document.getElementById('turnDistTotalTurns');
+  if (totalTurnsEl) {
+    totalTurnsEl.textContent = `${(run.turns || 0).toLocaleString()} turns`;
+  }
+
+  const dist = getRunTimeDist(run);
+  const hasTimeDist = dist && (dist.total_decaauts > 0 || (dist.tactical_decaauts + dist.explore_decaauts + dist.inter_travel_decaauts + dist.resting_decaauts > 0));
+
+  const decaAutSection = document.getElementById('turnDistDecaAutSection');
+  const noDecaAutNotice = document.getElementById('turnDistNoDecaAutNotice');
+
+  if (hasTimeDist) {
+    if (decaAutSection) decaAutSection.style.display = 'block';
+    if (noDecaAutNotice) noDecaAutNotice.style.display = 'none';
+
+    const bar = document.getElementById('turnDistBar');
+    if (bar) {
+      bar.innerHTML = `
+        <div class="time-dist-seg-tactical" style="flex: ${dist.tactical_decaauts};" title="Tactical: ${dist.tactical_pct}%"></div>
+        <div class="time-dist-seg-explore" style="flex: ${dist.explore_decaauts};" title="Auto-Explore: ${dist.explore_pct}%"></div>
+        <div class="time-dist-seg-travel" style="flex: ${dist.inter_travel_decaauts};" title="Inter-Travel: ${dist.inter_travel_pct}%"></div>
+        <div class="time-dist-seg-resting" style="flex: ${dist.resting_decaauts};" title="Resting: ${dist.resting_pct}%"></div>
+      `;
+    }
+
+    const tacticalPctEl = document.getElementById('turnDistTacticalPct');
+    const tacticalRawEl = document.getElementById('turnDistTacticalRaw');
+    if (tacticalPctEl) tacticalPctEl.textContent = `${dist.tactical_pct ?? 0}%`;
+    if (tacticalRawEl) tacticalRawEl.textContent = `(${Number(dist.tactical_decaauts || 0).toLocaleString()} daAuts)`;
+
+    const explorePctEl = document.getElementById('turnDistExplorePct');
+    const exploreRawEl = document.getElementById('turnDistExploreRaw');
+    if (explorePctEl) explorePctEl.textContent = `${dist.explore_pct ?? 0}%`;
+    if (exploreRawEl) exploreRawEl.textContent = `(${Number(dist.explore_decaauts || 0).toLocaleString()} daAuts)`;
+
+    const travelPctEl = document.getElementById('turnDistTravelPct');
+    const travelRawEl = document.getElementById('turnDistTravelRaw');
+    if (travelPctEl) travelPctEl.textContent = `${dist.inter_travel_pct ?? 0}%`;
+    if (travelRawEl) travelRawEl.textContent = `(${Number(dist.inter_travel_decaauts || 0).toLocaleString()} daAuts)`;
+
+    const restingPctEl = document.getElementById('turnDistRestingPct');
+    const restingRawEl = document.getElementById('turnDistRestingRaw');
+    if (restingPctEl) restingPctEl.textContent = `${dist.resting_pct ?? 0}%`;
+    if (restingRawEl) restingRawEl.textContent = `(${Number(dist.resting_decaauts || 0).toLocaleString()} daAuts)`;
+
+    const slowestWrapper = document.getElementById('turnDistSlowestLevelsWrapper');
+    const slowestList = document.getElementById('turnDistSlowestLevelsList');
+    if (slowestWrapper && slowestList) {
+      if (dist.slowest_levels && dist.slowest_levels.length > 0) {
+        slowestWrapper.style.display = 'block';
+        slowestList.innerHTML = dist.slowest_levels.slice(0, 5).map(lvl => `
+          <div class="time-slowest-row">
+            <span>${escapeHtml(lvl.level || lvl.place)}</span>
+            <strong>${(lvl.daAuts || 0).toLocaleString()} daAuts</strong>
+          </div>
+        `).join('');
+      } else {
+        slowestWrapper.style.display = 'none';
+      }
+    }
+  } else {
+    if (decaAutSection) decaAutSection.style.display = 'none';
+    if (noDecaAutNotice) noDecaAutNotice.style.display = 'block';
+  }
+
+  positionClampedPopover(popover, element, false);
+}
+
+function hideTurnDistPopover() {
+  const popover = document.getElementById('turnDistPopover');
+  if (popover) popover.style.display = 'none';
+}
+
+function showSpeedPopover(element, runId) {
+  const run = findRunById(runId);
+  if (!run) return;
+
+  const popover = document.getElementById('speedStatsPopover');
+  if (!popover) return;
+
+  hideAllTablePopovers();
+
+  const turnSpeedEl = document.getElementById('speedPopoverTurnSpeed');
+  const paceEl = document.getElementById('speedPopoverPace');
+  const durEl = document.getElementById('speedPopoverDuration');
+  const turnsEl = document.getElementById('speedPopoverTurns');
+
+  if (turnSpeedEl) {
+    turnSpeedEl.textContent = run.turn_speed ? `${run.turn_speed.toFixed(2)} turns / sec` : 'N/A';
+  }
+
+  if (paceEl) {
+    if (run.duration_seconds && run.turns && run.turns > 0) {
+      paceEl.textContent = `${(run.duration_seconds / run.turns).toFixed(3)} sec / turn`;
+    } else if (run.turn_speed && run.turn_speed > 0) {
+      paceEl.textContent = `${(1 / run.turn_speed).toFixed(3)} sec / turn`;
+    } else {
+      paceEl.textContent = 'N/A';
+    }
+  }
+
+  if (durEl) durEl.textContent = run.duration_formatted || '-';
+  if (turnsEl) turnsEl.textContent = (run.turns || 0).toLocaleString();
+
+  const dist = getRunTimeDist(run);
+  const hasTimeDist = dist && (dist.total_decaauts > 0 || (dist.tactical_decaauts + dist.explore_decaauts + dist.inter_travel_decaauts + dist.resting_decaauts > 0));
+  const decaAutSection = document.getElementById('speedPopoverDecaAutSection');
+
+  if (hasTimeDist) {
+    if (decaAutSection) decaAutSection.style.display = 'block';
+    const tacticalEl = document.getElementById('speedPopoverTacticalDa');
+    const levelsEl = document.getElementById('speedPopoverLevelsVisited');
+    const meanEl = document.getElementById('speedPopoverMeanPerLevel');
+
+    if (tacticalEl) tacticalEl.textContent = `${dist.tactical_decaauts.toLocaleString()} daAuts (${dist.tactical_pct}%)`;
+    if (levelsEl) levelsEl.textContent = `${dist.levels_seen} levels`;
+    if (meanEl) meanEl.textContent = `${dist.mean_per_level} daAuts / level`;
+  } else {
+    if (decaAutSection) decaAutSection.style.display = 'none';
+  }
+
+  positionClampedPopover(popover, element, false);
+}
+
+function hideSpeedPopover() {
+  const popover = document.getElementById('speedStatsPopover');
+  if (popover) popover.style.display = 'none';
 }
 
 function showTimePopover(element, runId) {
-  const run = state.allGames.find(g => String(g.id) === String(runId)) ||
-              state.activeRuns.find(g => String(g.id) === String(runId)) ||
-              (state.activeRun && String(state.activeRun.id) === String(runId) ? state.activeRun : null);
+  const run = findRunById(runId);
   if (!run) return;
 
   const popover = document.getElementById('timePopover');
   if (!popover) return;
 
-  // Lazy JSON parse time_distribution if needed
-  let dist = run._timeDist;
-  if (!dist && run.time_distribution) {
-    try {
-      dist = typeof run.time_distribution === 'string' ? JSON.parse(run.time_distribution) : run.time_distribution;
-      run._timeDist = dist;
-    } catch (e) {
-      dist = null;
-    }
-  }
+  hideAllTablePopovers();
 
   const isActive = Boolean(run.is_active);
   const titleEl = document.getElementById('timePopoverTitle');
@@ -1533,7 +1841,7 @@ function showTimePopover(element, runId) {
   const endedEl = document.getElementById('timePopoverEnded');
   const startedEl = document.getElementById('timePopoverStarted');
   const startedRow = document.getElementById('timePopoverStartedRow');
-  const decaAutSection = document.getElementById('timePopoverDecaAutSection');
+  const durEl = document.getElementById('timePopoverDuration');
 
   if (titleEl) {
     titleEl.textContent = isActive
@@ -1559,106 +1867,71 @@ function showTimePopover(element, runId) {
     }
   }
 
-  const hasTimeDist = dist && (dist.elapsed_da > 0 || (Number(dist.tactical_da || 0) + Number(dist.auto_explore_da || 0) + Number(dist.inter_level_travel_da || 0) + Number(dist.resting_da || 0) > 0));
-
-  if (hasTimeDist) {
-    if (decaAutSection) decaAutSection.style.display = 'block';
-
-    const bar = document.getElementById('timeDistBar');
-    if (bar) {
-      const tacticalDa = dist.tactical_da || 0;
-      const exploreDa = dist.auto_explore_da || 0;
-      const travelDa = dist.inter_level_travel_da || 0;
-      const restingDa = dist.resting_da || 0;
-
-      bar.innerHTML = `
-        <div class="time-dist-seg-tactical" style="flex: ${tacticalDa};" title="Tactical: ${dist.tactical_pct}%"></div>
-        <div class="time-dist-seg-explore" style="flex: ${exploreDa};" title="Auto-Explore: ${dist.explore_pct}%"></div>
-        <div class="time-dist-seg-travel" style="flex: ${travelDa};" title="Inter-Travel: ${dist.inter_travel_pct}%"></div>
-        <div class="time-dist-seg-resting" style="flex: ${restingDa};" title="Resting: ${dist.resting_pct}%"></div>
-      `;
-    }
-
-    const tacticalPctEl = document.getElementById('timeDistTacticalPct');
-    const tacticalRawEl = document.getElementById('timeDistTacticalRaw');
-    if (tacticalPctEl) tacticalPctEl.textContent = `${dist.tactical_pct ?? 0}%`;
-    if (tacticalRawEl) tacticalRawEl.textContent = `(${Number(dist.tactical_da || 0).toLocaleString()} daAuts)`;
-
-    const explorePctEl = document.getElementById('timeDistExplorePct');
-    const exploreRawEl = document.getElementById('timeDistExploreRaw');
-    if (explorePctEl) explorePctEl.textContent = `${dist.explore_pct ?? 0}%`;
-    if (exploreRawEl) exploreRawEl.textContent = `(${Number(dist.auto_explore_da || 0).toLocaleString()} daAuts)`;
-
-    const travelPctEl = document.getElementById('timeDistTravelPct');
-    const travelRawEl = document.getElementById('timeDistTravelRaw');
-    if (travelPctEl) travelPctEl.textContent = `${dist.inter_travel_pct ?? 0}%`;
-    if (travelRawEl) travelRawEl.textContent = `(${Number(dist.inter_level_travel_da || 0).toLocaleString()} daAuts)`;
-
-    const restingPctEl = document.getElementById('timeDistRestingPct');
-    const restingRawEl = document.getElementById('timeDistRestingRaw');
-    if (restingPctEl) restingPctEl.textContent = `${dist.resting_pct ?? 0}%`;
-    if (restingRawEl) restingRawEl.textContent = `(${Number(dist.resting_da || 0).toLocaleString()} daAuts)`;
-
-    const slowestWrapper = document.getElementById('timeSlowestLevelsWrapper');
-    const slowestList = document.getElementById('timeSlowestLevelsList');
-    if (slowestWrapper && slowestList) {
-      if (dist.slowest_levels && Array.isArray(dist.slowest_levels) && dist.slowest_levels.length > 0) {
-        slowestWrapper.style.display = 'block';
-        slowestList.innerHTML = dist.slowest_levels.slice(0, 5).map(lvl => `
-          <div class="time-slowest-row">
-            <span>${escapeHtml(lvl.level)}</span>
-            <strong>${(lvl.daAuts || 0).toLocaleString()} daAuts</strong>
-          </div>
-        `).join('');
-      } else {
-        slowestWrapper.style.display = 'none';
-      }
-    }
-  } else {
-    // 0.30–0.34 runs without time distribution: hide DecaAut section completely
-    if (decaAutSection) decaAutSection.style.display = 'none';
+  if (durEl) {
+    durEl.textContent = run.duration_formatted || '-';
   }
 
-  positionTimePopover(element);
-}
-
-function positionTimePopover(targetEl) {
-  const popover = document.getElementById('timePopover');
-  if (!popover || !targetEl || !targetEl.getBoundingClientRect) return;
-
-  popover.style.visibility = 'hidden';
-  popover.style.display = 'block';
-
-  const popWidth = popover.offsetWidth || 330;
-  const popHeight = popover.offsetHeight || 220;
-
-  const rect = targetEl.getBoundingClientRect();
-  // Time column is aligned to the right side of the table: position to the left of the cell
-  let x = rect.left - popWidth - 10;
-  if (x < 12) {
-    x = rect.right + 10;
-  }
-  if (x + popWidth > window.innerWidth - 12) {
-    x = Math.max(12, window.innerWidth - popWidth - 12);
-  }
-  if (x < 12) x = 12;
-
-  let y = rect.top - 6;
-  if (y + popHeight > window.innerHeight - 12) {
-    y = Math.max(12, window.innerHeight - popHeight - 12);
-  }
-  if (y < 12) y = 12;
-
-  popover.style.left = `${Math.round(x)}px`;
-  popover.style.top = `${Math.round(y)}px`;
-  popover.style.visibility = 'visible';
+  positionClampedPopover(popover, element, true);
 }
 
 function hideTimePopover() {
   const popover = document.getElementById('timePopover');
-  if (popover) {
-    popover.style.display = 'none';
-  }
+  if (popover) popover.style.display = 'none';
+}
+
+function hideAllTablePopovers() {
+  hideComboPopover();
+  hideTurnDistPopover();
+  hideSpeedPopover();
+  hideTimePopover();
+}
+
+function initTablePopovers() {
+  document.addEventListener('mouseover', (e) => {
+    // 1. Combo column
+    const comboTd = e.target.closest('td.run-combo-col');
+    if (comboTd && comboTd.dataset.runId) {
+      showComboPopover(comboTd, comboTd.dataset.runId);
+      return;
+    }
+
+    // 2. Turns column
+    const turnsTd = e.target.closest('td.run-turns-col');
+    if (turnsTd && turnsTd.dataset.runId) {
+      showTurnDistPopover(turnsTd, turnsTd.dataset.runId);
+      return;
+    }
+
+    // 3. Speed column
+    const speedTd = e.target.closest('td.run-speed-col');
+    if (speedTd && speedTd.dataset.runId) {
+      showSpeedPopover(speedTd, speedTd.dataset.runId);
+      return;
+    }
+
+    // 4. Time column
+    const timeTd = e.target.closest('td.run-time-col');
+    if (timeTd && timeTd.dataset.runId) {
+      showTimePopover(timeTd, timeTd.dataset.runId);
+      return;
+    }
+  });
+
+  document.addEventListener('mouseout', (e) => {
+    const td = e.target.closest('td.run-combo-col, td.run-turns-col, td.run-speed-col, td.run-time-col');
+    if (td) {
+      const related = e.relatedTarget;
+      if (!related || !td.contains(related)) {
+        hideAllTablePopovers();
+      }
+    }
+  });
+
+  window.addEventListener('scroll', hideAllTablePopovers, { passive: true });
+}
+
+function initTimePopoverEvents() {
+  initTablePopovers();
 }
 
 // ======================== COMBO ROLLER ========================
@@ -1824,16 +2097,7 @@ async function viewMorgue(filename) {
 
   let dist = null;
   if (run) {
-    if (run._timeDist) {
-      dist = run._timeDist;
-    } else if (run.time_distribution) {
-      try {
-        dist = typeof run.time_distribution === 'string' ? JSON.parse(run.time_distribution) : run.time_distribution;
-        run._timeDist = dist;
-      } catch (e) {
-        dist = null;
-      }
-    }
+    dist = getRunTimeDist(run);
   }
 
   try {
@@ -1845,21 +2109,24 @@ async function viewMorgue(filename) {
       // If dist wasn't in DB run object, parse from content
       if (!dist) {
         dist = extractTimeDistFromText(data.content);
+        if (run && dist) run._timeDist = dist;
       }
 
-      if (timeCard && dist && (dist.elapsed_da > 0 || (Number(dist.tactical_da || 0) + Number(dist.auto_explore_da || 0) + Number(dist.inter_level_travel_da || 0) + Number(dist.resting_da || 0) > 0))) {
+      const hasTimeDist = dist && (dist.total_decaauts > 0 || (dist.tactical_decaauts + dist.explore_decaauts + dist.inter_travel_decaauts + dist.resting_decaauts > 0));
+
+      if (timeCard && hasTimeDist) {
         timeCard.style.display = 'block';
         timeCard.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
             <span style="font-weight: 700; color: var(--page-heading); font-size: 0.85rem;">DecaAut Time Breakdown</span>
-            <span style="color: var(--muted-foreground); font-size: 0.75rem;">${(dist.elapsed_da || 0).toLocaleString()} total daAuts (${dist.levels_seen || 0} levels seen)</span>
+            <span style="color: var(--muted-foreground); font-size: 0.75rem;">${(dist.total_decaauts || 0).toLocaleString()} total daAuts (${dist.levels_seen || 0} levels seen)</span>
           </div>
           <div class="time-dist-bar-wrapper">
             <div class="time-dist-bar">
-              <div class="time-dist-seg-tactical" style="flex: ${dist.tactical_da || 0};" title="Tactical: ${dist.tactical_pct}%"></div>
-              <div class="time-dist-seg-explore" style="flex: ${dist.auto_explore_da || 0};" title="Auto-Explore: ${dist.explore_pct}%"></div>
-              <div class="time-dist-seg-travel" style="flex: ${dist.inter_level_travel_da || 0};" title="Inter-Travel: ${dist.inter_travel_pct}%"></div>
-              <div class="time-dist-seg-resting" style="flex: ${dist.resting_da || 0};" title="Resting: ${dist.resting_pct}%"></div>
+              <div class="time-dist-seg-tactical" style="flex: ${dist.tactical_decaauts || 0};" title="Tactical: ${dist.tactical_pct}%"></div>
+              <div class="time-dist-seg-explore" style="flex: ${dist.explore_decaauts || 0};" title="Auto-Explore: ${dist.explore_pct}%"></div>
+              <div class="time-dist-seg-travel" style="flex: ${dist.inter_travel_decaauts || 0};" title="Inter-Travel: ${dist.inter_travel_pct}%"></div>
+              <div class="time-dist-seg-resting" style="flex: ${dist.resting_decaauts || 0};" title="Resting: ${dist.resting_pct}%"></div>
             </div>
           </div>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.4rem; font-size: 0.75rem;">
@@ -1867,25 +2134,25 @@ async function viewMorgue(filename) {
               <span class="dot"></span>
               <span class="name">Tactical:</span>
               <strong>${dist.tactical_pct ?? 0}%</strong>
-              <span class="raw">(${Number(dist.tactical_da || 0).toLocaleString()} da)</span>
+              <span class="raw">(${Number(dist.tactical_decaauts || 0).toLocaleString()} da)</span>
             </div>
             <div class="time-dist-item explore">
               <span class="dot"></span>
               <span class="name">Auto-Explore:</span>
               <strong>${dist.explore_pct ?? 0}%</strong>
-              <span class="raw">(${Number(dist.auto_explore_da || 0).toLocaleString()} da)</span>
+              <span class="raw">(${Number(dist.explore_decaauts || 0).toLocaleString()} da)</span>
             </div>
             <div class="time-dist-item travel">
               <span class="dot"></span>
               <span class="name">Inter-Travel:</span>
               <strong>${dist.inter_travel_pct ?? 0}%</strong>
-              <span class="raw">(${Number(dist.inter_level_travel_da || 0).toLocaleString()} da)</span>
+              <span class="raw">(${Number(dist.inter_travel_decaauts || 0).toLocaleString()} da)</span>
             </div>
             <div class="time-dist-item resting">
               <span class="dot"></span>
               <span class="name">Resting:</span>
               <strong>${dist.resting_pct ?? 0}%</strong>
-              <span class="raw">(${Number(dist.resting_da || 0).toLocaleString()} da)</span>
+              <span class="raw">(${Number(dist.resting_decaauts || 0).toLocaleString()} da)</span>
             </div>
           </div>
         `;
