@@ -208,7 +208,7 @@ To activate debug logging for troubleshooting directory discovery, sync ingestio
 - **Morgue Modal Time Card:** In the Morgue Modal (`[View]`), `#morgueTimeCard` displays the visual distribution bar and metric breakdown directly above raw morgue text for runs with decaaut telemetry.
 - **Pure Information Principle:** Absolutely no hardcoded speed classifications, judgmental thresholds, or subjective speed labels ("reckless", "deliberate", "travel tax"). Pure statistics and percentages are delivered directly to the player.
 
-### 8.8 Table Popover Suite (Combo, Turns, Time)
+### 8.8 Table Popover Suite (Combo, Turns, Tactical Speed, Time)
 To keep table columns universal, Lowest Common Denominator (LCD), and free of horizontal clutter, interactive retro terminal popovers are bound strictly to data domains requiring deep contextual breakdowns:
 1. **Combo Full Form Popover (`td.run-combo-col` -> `#runComboPopover`):**
    - Displays full character combo title (e.g., `Gnoll Hexslinger`), 4-letter code (`GnHs`), full species name, background name, character name, level (`XL 8`), and deity worshipped.
@@ -216,10 +216,11 @@ To keep table columns universal, Lowest Common Denominator (LCD), and free of ho
 2. **Turn Distribution Popover (`td.run-turns-col` -> `#turnDistPopover`):**
    - For DCSS 0.35+ Trunk runs with decaaut telemetry: Renders the segmented CSS flex-ratio bar (Cyan `#34e2e2` Tactical, Green `#8ae234` Explore, Magenta `#fd59fa` Inter-Travel, Blue `#729fcf` Resting) with exact percentages and raw turns. Unified language to "turns". Redundant `Total Turns` header and slowest levels list removed (slowest levels remain accessible in the full Morgue Modal Time Card).
    - For 0.30–0.34 runs: Popover is cleanly suppressed (zero empty dummy popups).
-3. **Time & Timestamps Popover (`td.run-time-col` -> `#timePopover`):**
+3. **Tactical Speed Popover (`td.run-speed-col` -> `#tacticalSpeedPopover`):**
+   - For DCSS 0.35+ Trunk runs with decaaut telemetry: Calculates pure Tactical Speed ($\text{tactical turns} / \text{duration}$) alongside overall turn speed, tactical turn counts, and automated action ratios.
+   - For 0.30–0.34 runs (or runs without tactical telemetry): Popover is cleanly suppressed (zero empty popups).
+4. **Time & Timestamps Popover (`td.run-time-col` -> `#timePopover`):**
    - Dedicated strictly to run timestamps (Ended, Started) formatted in clean 24-hour time (`HH:MM:SS`, e.g. `12:19:38`). Redundant duration row omitted.
-4. **Pure LCD Speed & Duration Columns (Zero Popover Noise):**
-   - Speed (`turns / sec`) and Duration (`HH:MM:SS`) are directly self-contained LCD metrics displayed cleanly in their table cells without hover popovers. Redundant speed/pace popovers are completely omitted.
 
 ### 8.9 Multi-Term OR Search & Prebuilt Background Categories
 - **Multi-Term OR Syntax:** Run Explorer search supports multi-term OR queries separated by commas (`,`), pipes (`|`), or case-insensitive `or` (e.g. `Cj or Elementalist`, `Cj, EE`, `Cj | FE`). Each subclause can contain multiple whitespace-delimited tokens that are evaluated with AND logic.

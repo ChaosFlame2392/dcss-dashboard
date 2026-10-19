@@ -957,7 +957,7 @@ function renderRecentRuns() {
         <td>${(run.score || 0).toLocaleString()}</td>
         <td class="run-turns-col" data-run-id="${escapeHtml(run.id)}">${(run.turns || 0).toLocaleString()}</td>
         <td>${escapeHtml(run.duration_formatted || '-')}</td>
-        <td>${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
+        <td class="run-speed-col" data-run-id="${escapeHtml(run.id)}">${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
         <td>${run.is_win ? '<span class="win-badge">WON</span> ' : ''}${escapeHtml(run.outcome || 'Died')}</td>
         <td class="run-time-col" data-run-id="${escapeHtml(run.id)}">${dateStr}</td>
       </tr>
@@ -1000,7 +1000,7 @@ function renderExplorerRuns() {
         <td>${(run.score || 0).toLocaleString()}</td>
         <td class="run-turns-col" data-run-id="${escapeHtml(run.id)}">${(run.turns || 0).toLocaleString()}</td>
         <td>${escapeHtml(run.duration_formatted || '-')}</td>
-        <td>${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
+        <td class="run-speed-col" data-run-id="${escapeHtml(run.id)}">${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
         <td>${run.is_win ? '<span class="win-badge">WON</span> ' : ''}${escapeHtml(run.outcome || 'Died')}</td>
         <td class="run-time-col" data-run-id="${escapeHtml(run.id)}">${dateStr}</td>
       </tr>
@@ -1795,6 +1795,51 @@ function hideTurnDistPopover() {
   if (popover) popover.style.display = 'none';
 }
 
+function showTacticalSpeedPopover(element, runId) {
+  const run = findRunById(runId);
+  if (!run) return;
+
+  const dist = getRunTimeDist(run);
+  const hasTactical = dist && (Number(dist.tactical_decaauts || 0) > 0) && (Number(run.duration_seconds || 0) > 0);
+
+  // Strictly suppressed for runs without tactical decaaut telemetry
+  if (!hasTactical) {
+    hideTacticalSpeedPopover();
+    return;
+  }
+
+  const popover = document.getElementById('tacticalSpeedPopover');
+  if (!popover) return;
+
+  hideAllTablePopovers();
+
+  const tacticalTurns = Number(dist.tactical_decaauts || 0);
+  const durationSec = Number(run.duration_seconds || 0);
+  const tacticalSpeed = (tacticalTurns / durationSec).toFixed(2);
+  const overallSpeed = run.turn_speed ? run.turn_speed.toFixed(2) : (run.turns / durationSec).toFixed(2);
+  const totalTurns = Number(dist.total_decaauts || run.turns || 0);
+  const automatedTurns = Math.max(0, totalTurns - tacticalTurns);
+  const tacticalPct = dist.tactical_pct !== undefined ? dist.tactical_pct : ((tacticalTurns / totalTurns) * 100).toFixed(1);
+  const automatedPct = (100 - Number(tacticalPct)).toFixed(1);
+
+  const tacSpeedEl = document.getElementById('speedPopoverTacticalSpeed');
+  const overallSpeedEl = document.getElementById('speedPopoverOverallSpeed');
+  const tacTurnsEl = document.getElementById('speedPopoverTacticalTurns');
+  const autoTurnsEl = document.getElementById('speedPopoverAutomatedTurns');
+
+  if (tacSpeedEl) tacSpeedEl.textContent = `${tacticalSpeed} turns / sec`;
+  if (overallSpeedEl) overallSpeedEl.textContent = `${overallSpeed} turns / sec`;
+  if (tacTurnsEl) tacTurnsEl.textContent = `${tacticalTurns.toLocaleString()} (${tacticalPct}%)`;
+  if (autoTurnsEl) autoTurnsEl.textContent = `${automatedTurns.toLocaleString()} (${automatedPct}%)`;
+
+  positionClampedPopover(popover, element, false);
+}
+
+function hideTacticalSpeedPopover() {
+  const popover = document.getElementById('tacticalSpeedPopover');
+  if (popover) popover.style.display = 'none';
+}
+
 function showTimePopover(element, runId) {
   const run = findRunById(runId);
   if (!run) return;
@@ -1844,6 +1889,7 @@ function hideTimePopover() {
 function hideAllTablePopovers() {
   hideComboPopover();
   hideTurnDistPopover();
+  hideTacticalSpeedPopover();
   hideTimePopover();
 }
 
@@ -1863,7 +1909,14 @@ function initTablePopovers() {
       return;
     }
 
-    // 3. Time column
+    // 3. Speed column (strictly for runs with tactical decaaut telemetry)
+    const speedTd = e.target.closest('td.run-speed-col');
+    if (speedTd && speedTd.dataset.runId) {
+      showTacticalSpeedPopover(speedTd, speedTd.dataset.runId);
+      return;
+    }
+
+    // 4. Time column
     const timeTd = e.target.closest('td.run-time-col');
     if (timeTd && timeTd.dataset.runId) {
       showTimePopover(timeTd, timeTd.dataset.runId);
@@ -1872,7 +1925,7 @@ function initTablePopovers() {
   });
 
   document.addEventListener('mouseout', (e) => {
-    const td = e.target.closest('td.run-combo-col, td.run-turns-col, td.run-time-col');
+    const td = e.target.closest('td.run-combo-col, td.run-turns-col, td.run-speed-col, td.run-time-col');
     if (td) {
       const related = e.relatedTarget;
       if (!related || !td.contains(related)) {
