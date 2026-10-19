@@ -252,6 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadVersions();
   loadAllData();
   initMatrixEvents();
+  initTimePopoverEvents();
 
   // Delegated click handler for viewing morgue files (XSS-safe)
   document.addEventListener('click', (e) => {
@@ -890,7 +891,6 @@ function renderRecentRuns() {
   runs.forEach((run) => {
     const winClass = run.is_win ? ' class="win-row"' : '';
     const dateStr = formatShortDateTime(run.end_time);
-    const dateTitle = run.end_time ? new Date(run.end_time).toLocaleString() : '';
 
     const morgueBtn = run.morgue_file
       ? `<button class="btn btn-view-morgue" style="padding: 0.15rem 0.5rem; font-size: 0.75rem;" data-morgue="${escapeHtml(pathBasename(run.morgue_file))}">View</button>`
@@ -906,7 +906,7 @@ function renderRecentRuns() {
         <td>${(run.turns || 0).toLocaleString()}</td>
         <td>${escapeHtml(run.duration_formatted || '-')}</td>
         <td>${run.is_win ? '<span class="win-badge">WON</span> ' : ''}${escapeHtml(run.outcome || 'Died')}</td>
-        <td style="font-family: var(--font-mono); color: var(--muted-foreground); text-align: right;" title="${escapeHtml(dateTitle)}">${dateStr}</td>
+        <td class="run-time-col" data-run-id="${escapeHtml(run.id)}">${dateStr}</td>
       </tr>
     `;
   });
@@ -932,7 +932,6 @@ function renderExplorerRuns() {
     const winClass = run.is_win ? ' class="win-row"' : '';
     const rowNum = state.runsOffset + index + 1;
     const dateStr = formatShortDateTime(run.end_time);
-    const dateTitle = run.end_time ? new Date(run.end_time).toLocaleString() : '';
 
     const morgueBtn = run.morgue_file
       ? `<button class="btn btn-view-morgue" style="padding: 0.15rem 0.5rem; font-size: 0.75rem;" data-morgue="${escapeHtml(pathBasename(run.morgue_file))}">View</button>`
@@ -950,7 +949,7 @@ function renderExplorerRuns() {
         <td>${escapeHtml(run.duration_formatted || '-')}</td>
         <td>${run.turn_speed ? run.turn_speed.toFixed(2) : '-'}</td>
         <td>${run.is_win ? '<span class="win-badge">WON</span> ' : ''}${escapeHtml(run.outcome || 'Died')}</td>
-        <td style="font-family: var(--font-mono); color: var(--muted-foreground); text-align: right;" title="${escapeHtml(dateTitle)}">${dateStr}</td>
+        <td class="run-time-col" data-run-id="${escapeHtml(run.id)}">${dateStr}</td>
       </tr>
     `;
   });
@@ -1418,6 +1417,250 @@ function filterByCombo(combo) {
   }
 }
 
+// ======================== TIME & DECAAUT POPOVER ENGINE ========================
+
+function initTimePopoverEvents() {
+  document.addEventListener('mouseover', (e) => {
+    const td = e.target.closest('td.run-time-col');
+    if (td && td.dataset.runId) {
+      showTimePopover(td, td.dataset.runId);
+    }
+  });
+
+  document.addEventListener('mouseout', (e) => {
+    const td = e.target.closest('td.run-time-col');
+    if (td) {
+      const related = e.relatedTarget;
+      if (!related || !td.contains(related)) {
+        hideTimePopover();
+      }
+    }
+  });
+
+  window.addEventListener('scroll', hideTimePopover, { passive: true });
+}
+
+function formatFullDateTime(isoString) {
+  if (!isoString) return '-';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '-';
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+}
+
+function extractTimeDistFromText(content) {
+  if (!content || !content.includes('Table legend: (Time is in decaauts)')) return null;
+  const totalMatch = content.match(
+    /^\s*Total\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*([\d,.]+)\s*\|/m
+  );
+  if (!totalMatch) return null;
+  const a = parseInt(totalMatch[1].replace(/,/g, ''), 10) || 0;
+  const b = parseInt(totalMatch[2].replace(/,/g, ''), 10) || 0;
+  const c = parseInt(totalMatch[3].replace(/,/g, ''), 10) || 0;
+  const d = parseInt(totalMatch[4].replace(/,/g, ''), 10) || 0;
+  const e = parseInt(totalMatch[5].replace(/,/g, ''), 10) || 0;
+  const f = parseInt(totalMatch[6].replace(/,/g, ''), 10) || 0;
+  const g = parseFloat(totalMatch[7].replace(/,/g, '')) || 0;
+
+  const tacticalDa = Math.max(0, b - (d + e));
+  const tacticalPct = a > 0 ? Number(((tacticalDa / a) * 100).toFixed(2)) : 0.0;
+  const explorePct = a > 0 ? Number(((e / a) * 100).toFixed(2)) : 0.0;
+  const interTravelPct = a > 0 ? Number(((c / a) * 100).toFixed(2)) : 0.0;
+  const restingPct = a > 0 ? Number(((d / a) * 100).toFixed(2)) : 0.0;
+
+  // Extract slowest non-repeatable levels
+  const slowestLevels = [];
+  const slowestMatch = content.match(/Top non-repeatable levels by time:\s*\n([\s\S]*?)(?:\n\s*\n|\n\s*[A-Z]|$)/i);
+  if (slowestMatch && slowestMatch[1]) {
+    const lines = slowestMatch[1].trim().split('\n');
+    for (const line of lines) {
+      const lm = line.match(/^\s*(.+?):\s*([\d,]+)\s*daAuts/i);
+      if (lm) {
+        slowestLevels.push({
+          level: lm[1].trim(),
+          daAuts: parseInt(lm[2].replace(/,/g, ''), 10) || 0
+        });
+      }
+    }
+  }
+
+  return {
+    elapsed_da: a,
+    non_travel_da: b,
+    inter_level_travel_da: c,
+    resting_da: d,
+    auto_explore_da: e,
+    levels_seen: f,
+    mean_time_per_level: g,
+    tactical_da: tacticalDa,
+    tactical_pct: tacticalPct,
+    explore_pct: explorePct,
+    inter_travel_pct: interTravelPct,
+    resting_pct: restingPct,
+    slowest_levels: slowestLevels
+  };
+}
+
+function showTimePopover(element, runId) {
+  const run = state.allGames.find(g => String(g.id) === String(runId)) ||
+              state.activeRuns.find(g => String(g.id) === String(runId)) ||
+              (state.activeRun && String(state.activeRun.id) === String(runId) ? state.activeRun : null);
+  if (!run) return;
+
+  const popover = document.getElementById('timePopover');
+  if (!popover) return;
+
+  // Lazy JSON parse time_distribution if needed
+  let dist = run._timeDist;
+  if (!dist && run.time_distribution) {
+    try {
+      dist = typeof run.time_distribution === 'string' ? JSON.parse(run.time_distribution) : run.time_distribution;
+      run._timeDist = dist;
+    } catch (e) {
+      dist = null;
+    }
+  }
+
+  const isActive = Boolean(run.is_active);
+  const titleEl = document.getElementById('timePopoverTitle');
+  const endedLabel = document.getElementById('timePopoverEndedLabel');
+  const endedEl = document.getElementById('timePopoverEnded');
+  const startedEl = document.getElementById('timePopoverStarted');
+  const startedRow = document.getElementById('timePopoverStartedRow');
+  const decaAutSection = document.getElementById('timePopoverDecaAutSection');
+
+  if (titleEl) {
+    titleEl.textContent = isActive
+      ? 'Active Ongoing Run'
+      : (run.is_win ? 'Victory Run Completed' : 'Run Completed');
+  }
+
+  if (endedLabel) {
+    endedLabel.textContent = isActive ? 'Last Action / Saved:' : 'Ended:';
+  }
+
+  const endedTimestamp = run.end_time || run.start_time;
+  if (endedEl) {
+    endedEl.textContent = formatFullDateTime(endedTimestamp);
+  }
+
+  if (startedRow && startedEl) {
+    if (!isActive && run.start_time && run.end_time && run.start_time !== run.end_time) {
+      startedRow.style.display = 'block';
+      startedEl.textContent = formatFullDateTime(run.start_time);
+    } else {
+      startedRow.style.display = 'none';
+    }
+  }
+
+  const hasTimeDist = dist && (dist.elapsed_da > 0 || (Number(dist.tactical_da || 0) + Number(dist.auto_explore_da || 0) + Number(dist.inter_level_travel_da || 0) + Number(dist.resting_da || 0) > 0));
+
+  if (hasTimeDist) {
+    if (decaAutSection) decaAutSection.style.display = 'block';
+
+    const bar = document.getElementById('timeDistBar');
+    if (bar) {
+      const tacticalDa = dist.tactical_da || 0;
+      const exploreDa = dist.auto_explore_da || 0;
+      const travelDa = dist.inter_level_travel_da || 0;
+      const restingDa = dist.resting_da || 0;
+
+      bar.innerHTML = `
+        <div class="time-dist-seg-tactical" style="flex: ${tacticalDa};" title="Tactical: ${dist.tactical_pct}%"></div>
+        <div class="time-dist-seg-explore" style="flex: ${exploreDa};" title="Auto-Explore: ${dist.explore_pct}%"></div>
+        <div class="time-dist-seg-travel" style="flex: ${travelDa};" title="Inter-Travel: ${dist.inter_travel_pct}%"></div>
+        <div class="time-dist-seg-resting" style="flex: ${restingDa};" title="Resting: ${dist.resting_pct}%"></div>
+      `;
+    }
+
+    const tacticalPctEl = document.getElementById('timeDistTacticalPct');
+    const tacticalRawEl = document.getElementById('timeDistTacticalRaw');
+    if (tacticalPctEl) tacticalPctEl.textContent = `${dist.tactical_pct ?? 0}%`;
+    if (tacticalRawEl) tacticalRawEl.textContent = `(${Number(dist.tactical_da || 0).toLocaleString()} daAuts)`;
+
+    const explorePctEl = document.getElementById('timeDistExplorePct');
+    const exploreRawEl = document.getElementById('timeDistExploreRaw');
+    if (explorePctEl) explorePctEl.textContent = `${dist.explore_pct ?? 0}%`;
+    if (exploreRawEl) exploreRawEl.textContent = `(${Number(dist.auto_explore_da || 0).toLocaleString()} daAuts)`;
+
+    const travelPctEl = document.getElementById('timeDistTravelPct');
+    const travelRawEl = document.getElementById('timeDistTravelRaw');
+    if (travelPctEl) travelPctEl.textContent = `${dist.inter_travel_pct ?? 0}%`;
+    if (travelRawEl) travelRawEl.textContent = `(${Number(dist.inter_level_travel_da || 0).toLocaleString()} daAuts)`;
+
+    const restingPctEl = document.getElementById('timeDistRestingPct');
+    const restingRawEl = document.getElementById('timeDistRestingRaw');
+    if (restingPctEl) restingPctEl.textContent = `${dist.resting_pct ?? 0}%`;
+    if (restingRawEl) restingRawEl.textContent = `(${Number(dist.resting_da || 0).toLocaleString()} daAuts)`;
+
+    const slowestWrapper = document.getElementById('timeSlowestLevelsWrapper');
+    const slowestList = document.getElementById('timeSlowestLevelsList');
+    if (slowestWrapper && slowestList) {
+      if (dist.slowest_levels && Array.isArray(dist.slowest_levels) && dist.slowest_levels.length > 0) {
+        slowestWrapper.style.display = 'block';
+        slowestList.innerHTML = dist.slowest_levels.slice(0, 5).map(lvl => `
+          <div class="time-slowest-row">
+            <span>${escapeHtml(lvl.level)}</span>
+            <strong>${(lvl.daAuts || 0).toLocaleString()} daAuts</strong>
+          </div>
+        `).join('');
+      } else {
+        slowestWrapper.style.display = 'none';
+      }
+    }
+  } else {
+    // 0.30–0.34 runs without time distribution: hide DecaAut section completely
+    if (decaAutSection) decaAutSection.style.display = 'none';
+  }
+
+  positionTimePopover(element);
+}
+
+function positionTimePopover(targetEl) {
+  const popover = document.getElementById('timePopover');
+  if (!popover || !targetEl || !targetEl.getBoundingClientRect) return;
+
+  popover.style.visibility = 'hidden';
+  popover.style.display = 'block';
+
+  const popWidth = popover.offsetWidth || 330;
+  const popHeight = popover.offsetHeight || 220;
+
+  const rect = targetEl.getBoundingClientRect();
+  // Time column is aligned to the right side of the table: position to the left of the cell
+  let x = rect.left - popWidth - 10;
+  if (x < 12) {
+    x = rect.right + 10;
+  }
+  if (x + popWidth > window.innerWidth - 12) {
+    x = Math.max(12, window.innerWidth - popWidth - 12);
+  }
+  if (x < 12) x = 12;
+
+  let y = rect.top - 6;
+  if (y + popHeight > window.innerHeight - 12) {
+    y = Math.max(12, window.innerHeight - popHeight - 12);
+  }
+  if (y < 12) y = 12;
+
+  popover.style.left = `${Math.round(x)}px`;
+  popover.style.top = `${Math.round(y)}px`;
+  popover.style.visibility = 'visible';
+}
+
+function hideTimePopover() {
+  const popover = document.getElementById('timePopover');
+  if (popover) {
+    popover.style.display = 'none';
+  }
+}
+
 // ======================== COMBO ROLLER ========================
 
 async function loadSuggest() {
@@ -1562,18 +1805,94 @@ async function viewMorgue(filename) {
   const modal = document.getElementById('morgueModal');
   const title = document.getElementById('morgueModalTitle');
   const body = document.getElementById('morgueModalBody');
+  const timeCard = document.getElementById('morgueTimeCard');
 
   if (!modal || !title || !body) return;
 
   title.textContent = filename.startsWith('morgue-') ? `Morgue — ${filename}` : `Live Character Dump — ${filename}`;
   body.textContent = 'Loading file from disk...';
+  if (timeCard) {
+    timeCard.style.display = 'none';
+    timeCard.innerHTML = '';
+  }
   modal.style.display = 'flex';
+
+  // Find matching run in state.allGames or state.activeRuns
+  const baseName = pathBasename(filename);
+  const run = state.allGames.find(g => g.morgue_file && pathBasename(g.morgue_file) === baseName) ||
+              state.activeRuns.find(g => (g.morgue_file && pathBasename(g.morgue_file) === baseName) || (g.name && `${g.name}.txt` === baseName));
+
+  let dist = null;
+  if (run) {
+    if (run._timeDist) {
+      dist = run._timeDist;
+    } else if (run.time_distribution) {
+      try {
+        dist = typeof run.time_distribution === 'string' ? JSON.parse(run.time_distribution) : run.time_distribution;
+        run._timeDist = dist;
+      } catch (e) {
+        dist = null;
+      }
+    }
+  }
 
   try {
     const res = await fetch(`/api/morgue/${encodeURIComponent(filename)}`);
     const data = await res.json();
     if (data.success && data.content) {
       body.textContent = data.content;
+
+      // If dist wasn't in DB run object, parse from content
+      if (!dist) {
+        dist = extractTimeDistFromText(data.content);
+      }
+
+      if (timeCard && dist && (dist.elapsed_da > 0 || (Number(dist.tactical_da || 0) + Number(dist.auto_explore_da || 0) + Number(dist.inter_level_travel_da || 0) + Number(dist.resting_da || 0) > 0))) {
+        timeCard.style.display = 'block';
+        timeCard.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <span style="font-weight: 700; color: var(--page-heading); font-size: 0.85rem;">DecaAut Time Breakdown</span>
+            <span style="color: var(--muted-foreground); font-size: 0.75rem;">${(dist.elapsed_da || 0).toLocaleString()} total daAuts (${dist.levels_seen || 0} levels seen)</span>
+          </div>
+          <div class="time-dist-bar-wrapper">
+            <div class="time-dist-bar">
+              <div class="time-dist-seg-tactical" style="flex: ${dist.tactical_da || 0};" title="Tactical: ${dist.tactical_pct}%"></div>
+              <div class="time-dist-seg-explore" style="flex: ${dist.auto_explore_da || 0};" title="Auto-Explore: ${dist.explore_pct}%"></div>
+              <div class="time-dist-seg-travel" style="flex: ${dist.inter_level_travel_da || 0};" title="Inter-Travel: ${dist.inter_travel_pct}%"></div>
+              <div class="time-dist-seg-resting" style="flex: ${dist.resting_da || 0};" title="Resting: ${dist.resting_pct}%"></div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.4rem; font-size: 0.75rem;">
+            <div class="time-dist-item tactical">
+              <span class="dot"></span>
+              <span class="name">Tactical:</span>
+              <strong>${dist.tactical_pct ?? 0}%</strong>
+              <span class="raw">(${Number(dist.tactical_da || 0).toLocaleString()} da)</span>
+            </div>
+            <div class="time-dist-item explore">
+              <span class="dot"></span>
+              <span class="name">Auto-Explore:</span>
+              <strong>${dist.explore_pct ?? 0}%</strong>
+              <span class="raw">(${Number(dist.auto_explore_da || 0).toLocaleString()} da)</span>
+            </div>
+            <div class="time-dist-item travel">
+              <span class="dot"></span>
+              <span class="name">Inter-Travel:</span>
+              <strong>${dist.inter_travel_pct ?? 0}%</strong>
+              <span class="raw">(${Number(dist.inter_level_travel_da || 0).toLocaleString()} da)</span>
+            </div>
+            <div class="time-dist-item resting">
+              <span class="dot"></span>
+              <span class="name">Resting:</span>
+              <strong>${dist.resting_pct ?? 0}%</strong>
+              <span class="raw">(${Number(dist.resting_da || 0).toLocaleString()} da)</span>
+            </div>
+          </div>
+        `;
+      } else if (timeCard) {
+        timeCard.style.display = 'none';
+        timeCard.innerHTML = '';
+      }
     } else {
       body.textContent = `Error: ${data.error || 'Could not load morgue file.'}`;
     }
@@ -1586,6 +1905,11 @@ function closeMorgueModal(e) {
   if (e && e.target && e.target.classList.contains('modal-content')) return;
   const modal = document.getElementById('morgueModal');
   if (modal) modal.style.display = 'none';
+  const timeCard = document.getElementById('morgueTimeCard');
+  if (timeCard) {
+    timeCard.style.display = 'none';
+    timeCard.innerHTML = '';
+  }
 }
 
 // ======================== GLOBAL FILTERS ========================

@@ -13,6 +13,9 @@ const {
   rollRecommendedCombo,
   formatDuration,
   isValidCombo,
+  parseDcssVersion,
+  compareVersions,
+  matchesVersionFilter,
 } = require('./constants');
 
 /**
@@ -167,16 +170,79 @@ function buildWhereClause(filter = {}) {
     params.push(filter.game_type);
   }
 
-  // Version filter (e.g. 'stable', 'trunk', or specific version string)
+  // Version filter (e.g. '>= 0.35', '<= 0.34', '0.34', '0.35-a0', 'stable', 'trunk')
   if (filter.version && filter.version !== 'all') {
-    const v = filter.version.toLowerCase();
-    if (v === 'stable' || v.startsWith('0.34')) {
-      conditions.push("(version LIKE '0.34%' OR source_file LIKE 'Stable/%')");
-    } else if (v === 'trunk' || v.startsWith('0.35')) {
-      conditions.push("(version LIKE '0.35%' OR source_file LIKE 'Trunk/%')");
+    const trimmedVersion = String(filter.version).trim();
+    const opMatch = trimmedVersion.match(/^([><]=?|==?|!=)\s*(.*)$/);
+    if (opMatch) {
+      const op = opMatch[1];
+      const target = opMatch[2].trim();
+      const f = parseDcssVersion(target);
+      const hasPatch = /^\d+\.\d+\.\d+/.test(target);
+
+      if (!hasPatch && !f.prerelease) {
+        if (op === '>=') {
+          conditions.push('(version_major > ? OR (version_major = ? AND version_minor >= ?))');
+          params.push(f.major, f.major, f.minor);
+        } else if (op === '>') {
+          conditions.push('(version_major > ? OR (version_major = ? AND version_minor > ?))');
+          params.push(f.major, f.major, f.minor);
+        } else if (op === '<=') {
+          conditions.push('(version_major < ? OR (version_major = ? AND version_minor <= ?))');
+          params.push(f.major, f.major, f.minor);
+        } else if (op === '<') {
+          conditions.push('(version_major < ? OR (version_major = ? AND version_minor < ?))');
+          params.push(f.major, f.major, f.minor);
+        } else if (op === '==' || op === '=') {
+          conditions.push('(version_major = ? AND version_minor = ?)');
+          params.push(f.major, f.minor);
+        } else if (op === '!=') {
+          conditions.push('(version_major != ? OR version_minor != ?)');
+          params.push(f.major, f.minor);
+        }
+      } else {
+        if (op === '>=') {
+          conditions.push('(version_major > ? OR (version_major = ? AND (version_minor > ? OR (version_minor = ? AND version_patch >= ?))))');
+          params.push(f.major, f.major, f.minor, f.minor, f.patch);
+        } else if (op === '>') {
+          conditions.push('(version_major > ? OR (version_major = ? AND (version_minor > ? OR (version_minor = ? AND version_patch > ?))))');
+          params.push(f.major, f.major, f.minor, f.minor, f.patch);
+        } else if (op === '<=') {
+          conditions.push('(version_major < ? OR (version_major = ? AND (version_minor < ? OR (version_minor = ? AND version_patch <= ?))))');
+          params.push(f.major, f.major, f.minor, f.minor, f.patch);
+        } else if (op === '<') {
+          conditions.push('(version_major < ? OR (version_major = ? AND (version_minor < ? OR (version_minor = ? AND version_patch < ?))))');
+          params.push(f.major, f.major, f.minor, f.minor, f.patch);
+        } else if (op === '==' || op === '=') {
+          conditions.push('(version_major = ? AND version_minor = ? AND version_patch = ?)');
+          params.push(f.major, f.minor, f.patch);
+        } else if (op === '!=') {
+          conditions.push('(version_major != ? OR version_minor != ? OR version_patch != ?)');
+          params.push(f.major, f.minor, f.patch);
+        }
+      }
     } else {
-      conditions.push('(version LIKE ? OR source_file LIKE ?)');
-      params.push(`%${filter.version}%`, `%${filter.version}%`);
+      const lower = trimmedVersion.toLowerCase();
+      if (lower === 'stable') {
+        conditions.push('(version_major = 0 AND version_minor = 34)');
+      } else if (lower === 'trunk') {
+        conditions.push('(version_major = 0 AND version_minor = 35)');
+      } else {
+        const minorMatch = trimmedVersion.match(/^(\d+)\.(\d+)$/);
+        if (minorMatch) {
+          conditions.push('(version_major = ? AND version_minor = ?)');
+          params.push(parseInt(minorMatch[1], 10), parseInt(minorMatch[2], 10));
+        } else {
+          const f = parseDcssVersion(trimmedVersion);
+          if (f.major > 0 || f.minor > 0) {
+            conditions.push('(version = ? OR (version_major = ? AND version_minor = ? AND version_patch = ?))');
+            params.push(trimmedVersion, f.major, f.minor, f.patch);
+          } else {
+            conditions.push('(version LIKE ? OR source_file LIKE ?)');
+            params.push(`%${trimmedVersion}%`, `%${trimmedVersion}%`);
+          }
+        }
+      }
     }
   }
 
@@ -280,10 +346,8 @@ function activeRunMatchesFilter(ar, filter = {}) {
 
   // 8. Version
   if (filter.version && filter.version !== 'all') {
-    const v = filter.version.toLowerCase();
-    const arV = (ar.version || '').toLowerCase();
-    const arSrc = (ar.source_file || '').toLowerCase();
-    if (!arV.includes(v) && !arSrc.includes(v)) return false;
+    const versionToCheck = ar.version || (ar.source_file?.includes('Trunk') ? '0.35-a0' : (ar.source_file?.includes('Stable') ? '0.34.1' : ''));
+    if (!matchesVersionFilter(versionToCheck, filter.version)) return false;
   }
 
   return true;
@@ -311,7 +375,12 @@ function getStats(db, filter = {}) {
       MAX(runes_count) as max_runes_single_game,
       MAX(score) as best_score,
       AVG(score) as avg_score,
-      SUM(score) as total_score
+      SUM(score) as total_score,
+      AVG(tactical_pct) as avg_tactical_pct,
+      AVG(explore_pct) as avg_explore_pct,
+      AVG(inter_travel_pct) as avg_inter_travel_pct,
+      AVG(resting_pct) as avg_resting_pct,
+      COUNT(CASE WHEN tactical_pct IS NOT NULL THEN 1 END) as games_with_time_dist
     FROM games
     ${whereClause}
   `;
@@ -389,7 +458,8 @@ function getStats(db, filter = {}) {
 
   // Fastest Win by duration
   const fastestWinQuery = `
-    SELECT id, combo, char_name, name, turns, duration_seconds, end_time, score, runes_count
+    SELECT id, combo, char_name, name, turns, duration_seconds, end_time, score, runes_count,
+           version, version_major, version_minor, tactical_pct, explore_pct, inter_travel_pct, resting_pct, time_distribution
     FROM games
     ${whereClause} AND is_win = 1
     ORDER BY duration_seconds ASC
@@ -399,11 +469,13 @@ function getStats(db, filter = {}) {
   const fastestWin = fastestWinRow ? {
     ...fastestWinRow,
     duration_formatted: formatDuration(fastestWinRow.duration_seconds),
+    time_distribution: fastestWinRow.time_distribution ? (typeof fastestWinRow.time_distribution === 'string' ? JSON.parse(fastestWinRow.time_distribution) : fastestWinRow.time_distribution) : null,
   } : null;
 
   // Shortest Win by turns
   const shortestWinQuery = `
-    SELECT id, combo, char_name, name, turns, duration_seconds, end_time, score, runes_count
+    SELECT id, combo, char_name, name, turns, duration_seconds, end_time, score, runes_count,
+           version, version_major, version_minor, tactical_pct, explore_pct, inter_travel_pct, resting_pct, time_distribution
     FROM games
     ${whereClause} AND is_win = 1
     ORDER BY turns ASC
@@ -413,6 +485,7 @@ function getStats(db, filter = {}) {
   const shortestWinByTurns = shortestWinRow ? {
     ...shortestWinRow,
     duration_formatted: formatDuration(shortestWinRow.duration_seconds),
+    time_distribution: shortestWinRow.time_distribution ? (typeof shortestWinRow.time_distribution === 'string' ? JSON.parse(shortestWinRow.time_distribution) : shortestWinRow.time_distribution) : null,
   } : null;
 
   return {
@@ -444,6 +517,13 @@ function getStats(db, filter = {}) {
       totalTurns: combinedTurns,
       completedTurns: agg.total_turns || 0,
       activeTurns,
+    },
+    timeDistributionMetrics: {
+      avgTacticalPct: agg.avg_tactical_pct != null ? Number(Number(agg.avg_tactical_pct).toFixed(2)) : null,
+      avgExplorePct: agg.avg_explore_pct != null ? Number(Number(agg.avg_explore_pct).toFixed(2)) : null,
+      avgInterTravelPct: agg.avg_inter_travel_pct != null ? Number(Number(agg.avg_inter_travel_pct).toFixed(2)) : null,
+      avgRestingPct: agg.avg_resting_pct != null ? Number(Number(agg.avg_resting_pct).toFixed(2)) : null,
+      gamesCount: agg.games_with_time_dist || 0,
     },
     activeRunsCount: activeGamesCount,
     activePlaytime: {
@@ -690,8 +770,10 @@ function getGames(db, filter = {}, limit = null, offset = 0, sort = {}) {
       id, name, species, species_abbr, background, background_abbr, combo, char_name,
       god, score, turns, duration_seconds, start_time, end_time, place, branch,
       level, xl, hp, max_hp, mp, max_mp, killer, ktyp, dam, outcome, is_win,
-      runes_count, runes_list, turn_speed, source_file, morgue_file, version, seed,
-      game_type, is_active
+      runes_count, runes_list, turn_speed, source_file, morgue_file, version,
+      version_major, version_minor,
+      tactical_pct, explore_pct, inter_travel_pct, resting_pct, time_distribution,
+      seed, game_type, is_active
     FROM games
     ${whereClause}
     ORDER BY ${sortField} ${sortDir}
@@ -704,7 +786,8 @@ function getGames(db, filter = {}, limit = null, offset = 0, sort = {}) {
   const games = rows.map(r => ({
     ...r,
     duration_formatted: formatDuration(r.duration_seconds),
-    runes_list: r.runes_list ? JSON.parse(r.runes_list) : [],
+    runes_list: r.runes_list ? (typeof r.runes_list === 'string' ? JSON.parse(r.runes_list) : r.runes_list) : [],
+    time_distribution: r.time_distribution ? (typeof r.time_distribution === 'string' ? JSON.parse(r.time_distribution) : r.time_distribution) : null,
   }));
 
   return {
@@ -727,8 +810,10 @@ function getActiveRuns(db) {
       id, name, species, species_abbr, background, background_abbr, combo, char_name,
       god, score, turns, duration_seconds, start_time, end_time, place, branch,
       level, xl, hp, max_hp, mp, max_mp, killer, ktyp, dam, outcome, is_win,
-      runes_count, runes_list, turn_speed, source_file, morgue_file, version, seed,
-      game_type, is_active, raw_data
+      runes_count, runes_list, turn_speed, source_file, morgue_file, version,
+      version_major, version_minor,
+      tactical_pct, explore_pct, inter_travel_pct, resting_pct, time_distribution,
+      seed, game_type, is_active, raw_data
     FROM games
     WHERE is_active = 1
     ORDER BY end_time DESC
@@ -751,6 +836,11 @@ function getActiveRuns(db) {
       id: row.id,
       duration_formatted: formatDuration(row.duration_seconds),
       runes_list: row.runes_list ? (typeof row.runes_list === 'string' ? JSON.parse(row.runes_list) : row.runes_list) : (extraData.runes_list || []),
+      time_distribution: row.time_distribution ? (typeof row.time_distribution === 'string' ? JSON.parse(row.time_distribution) : row.time_distribution) : (extraData.time_distribution ? (typeof extraData.time_distribution === 'string' ? JSON.parse(extraData.time_distribution) : extraData.time_distribution) : null),
+      tactical_pct: row.tactical_pct ?? extraData.tactical_pct ?? null,
+      explore_pct: row.explore_pct ?? extraData.explore_pct ?? null,
+      inter_travel_pct: row.inter_travel_pct ?? extraData.inter_travel_pct ?? null,
+      resting_pct: row.resting_pct ?? extraData.resting_pct ?? null,
       is_active: 1,
     };
   });
@@ -952,8 +1042,7 @@ function getVersions(db) {
   const versionRows = db.prepare(`
     SELECT DISTINCT version
     FROM games
-    WHERE version IS NOT NULL AND version != '' AND is_active = 0 AND (ktyp IS NULL OR ktyp != 'active')
-    ORDER BY version DESC
+    WHERE version IS NOT NULL AND version != '' AND is_active = 0
   `).all();
 
   const sourceRows = db.prepare(`
@@ -964,6 +1053,8 @@ function getVersions(db) {
   `).all();
 
   const versions = Array.from(new Set(versionRows.map(r => r.version).filter(Boolean)));
+  versions.sort((a, b) => compareVersions(b, a) || b.localeCompare(a));
+
   const sources = Array.from(new Set(sourceRows.map(r => r.source_file).filter(Boolean)));
 
   return {

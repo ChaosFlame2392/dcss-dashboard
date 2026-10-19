@@ -369,7 +369,65 @@
         <h3 id="morgueModalTitle" style="font-size: 0.95rem; font-weight: 700; color: var(--page-heading);">morgue-file.txt</h3>
         <button class="btn" onclick="closeMorgueModal()">✕ Close</button>
       </div>
+      <div id="morgueTimeCard" class="morgue-time-card" style="display: none;"></div>
       <div class="modal-body" id="morgueModalBody">Loading morgue...</div>
+    </div>
+  </div>
+
+  <!-- Popover for Run Time and DecaAut Time Distribution -->
+  <div id="timePopover" class="crawl-popover time-popover" style="display: none;">
+    <div class="popover-title" id="timePopoverTitle">Run Completed</div>
+
+    <!-- Timestamp section -->
+    <div class="time-popover-timestamps">
+      <div><span class="label" id="timePopoverEndedLabel">Ended:</span> <strong id="timePopoverEnded">-</strong></div>
+      <div id="timePopoverStartedRow"><span class="label">Started:</span> <strong id="timePopoverStarted">-</strong></div>
+    </div>
+
+    <!-- DecaAut breakdown section (hidden by default) -->
+    <div id="timePopoverDecaAutSection" style="display: none;">
+      <div class="time-popover-divider"></div>
+      <div class="time-dist-header">DecaAut Time Breakdown</div>
+
+      <!-- Visual segmented bar -->
+      <div class="time-dist-bar-wrapper">
+        <div class="time-dist-bar" id="timeDistBar"></div>
+      </div>
+
+      <!-- Grid items for Tactical, Auto-Explore, Inter-Travel, Resting -->
+      <div class="time-dist-grid">
+        <div class="time-dist-item tactical">
+          <span class="dot"></span>
+          <span class="name">Tactical:</span>
+          <strong id="timeDistTacticalPct">0%</strong>
+          <span class="raw" id="timeDistTacticalRaw">(0 daAuts)</span>
+        </div>
+        <div class="time-dist-item explore">
+          <span class="dot"></span>
+          <span class="name">Auto-Explore:</span>
+          <strong id="timeDistExplorePct">0%</strong>
+          <span class="raw" id="timeDistExploreRaw">(0 daAuts)</span>
+        </div>
+        <div class="time-dist-item travel">
+          <span class="dot"></span>
+          <span class="name">Inter-Travel:</span>
+          <strong id="timeDistTravelPct">0%</strong>
+          <span class="raw" id="timeDistTravelRaw">(0 daAuts)</span>
+        </div>
+        <div class="time-dist-item resting">
+          <span class="dot"></span>
+          <span class="name">Resting:</span>
+          <strong id="timeDistRestingPct">0%</strong>
+          <span class="raw" id="timeDistRestingRaw">(0 daAuts)</span>
+        </div>
+      </div>
+
+      <!-- Slowest levels list container -->
+      <div id="timeSlowestLevelsWrapper" style="display: none;">
+        <div class="time-popover-divider"></div>
+        <div class="time-slowest-title">Slowest Levels:</div>
+        <div id="timeSlowestLevelsList" class="time-slowest-list"></div>
+      </div>
     </div>
   </div>
 

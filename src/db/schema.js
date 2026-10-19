@@ -53,6 +53,14 @@ CREATE TABLE IF NOT EXISTS games (
   source_file TEXT,
   morgue_file TEXT,
   version TEXT,
+  version_major INTEGER DEFAULT 0,
+  version_minor INTEGER DEFAULT 0,
+  version_patch INTEGER DEFAULT 0,
+  tactical_pct REAL,
+  explore_pct REAL,
+  inter_travel_pct REAL,
+  resting_pct REAL,
+  time_distribution TEXT,
   seed TEXT,
   game_type TEXT DEFAULT 'normal',
   is_active INTEGER NOT NULL DEFAULT 0,
@@ -77,6 +85,77 @@ CREATE INDEX IF NOT EXISTS idx_games_is_active ON games(is_active);
 CREATE INDEX IF NOT EXISTS idx_games_score ON games(score);
 `;
 
+const { parseDcssVersion } = require('./constants');
+
+/**
+ * Idempotently migrates existing tables to latest schema and backfills version numbers
+ */
+function migrateSchema(db) {
+  const tableInfo = db.prepare('PRAGMA table_info(games)').all();
+  const existingCols = new Set(tableInfo.map(c => c.name));
+
+  const columnsToAdd = [
+    { name: 'version_major', ddl: 'ALTER TABLE games ADD COLUMN version_major INTEGER DEFAULT 0;' },
+    { name: 'version_minor', ddl: 'ALTER TABLE games ADD COLUMN version_minor INTEGER DEFAULT 0;' },
+    { name: 'version_patch', ddl: 'ALTER TABLE games ADD COLUMN version_patch INTEGER DEFAULT 0;' },
+    { name: 'tactical_pct', ddl: 'ALTER TABLE games ADD COLUMN tactical_pct REAL;' },
+    { name: 'explore_pct', ddl: 'ALTER TABLE games ADD COLUMN explore_pct REAL;' },
+    { name: 'inter_travel_pct', ddl: 'ALTER TABLE games ADD COLUMN inter_travel_pct REAL;' },
+    { name: 'resting_pct', ddl: 'ALTER TABLE games ADD COLUMN resting_pct REAL;' },
+    { name: 'time_distribution', ddl: 'ALTER TABLE games ADD COLUMN time_distribution TEXT;' },
+  ];
+
+  for (const col of columnsToAdd) {
+    if (!existingCols.has(col.name)) {
+      try {
+        db.exec(col.ddl);
+      } catch (err) {
+        // Column might already exist
+      }
+    }
+  }
+
+  // Ensure index exists
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_games_version_nums ON games(version_major, version_minor);');
+  } catch (err) {
+    // Ignore index error if already present
+  }
+
+  // CRITICAL: Backfill version_major, version_minor, version_patch for existing records where version_minor = 0 OR version_minor IS NULL
+  const rowsToBackfill = db.prepare(`
+    SELECT id, version, source_file
+    FROM games
+    WHERE version_minor = 0 OR version_minor IS NULL
+  `).all();
+
+  if (rowsToBackfill.length > 0) {
+    const updateVersionStmt = db.prepare(`
+      UPDATE games
+      SET version_major = ?, version_minor = ?, version_patch = ?
+      WHERE id = ?
+    `);
+
+    db.exec('BEGIN TRANSACTION');
+    try {
+      for (const row of rowsToBackfill) {
+        let vStr = row.version;
+        if (!vStr && row.source_file) {
+          vStr = row.source_file.startsWith('Trunk') ? 'trunk' : (row.source_file.startsWith('Stable') ? 'stable' : '');
+        }
+        const parsed = parseDcssVersion(vStr);
+        if (parsed && (parsed.major > 0 || parsed.minor > 0 || parsed.patch > 0)) {
+          updateVersionStmt.run(parsed.major, parsed.minor, parsed.patch, row.id);
+        }
+      }
+      db.exec('COMMIT');
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
+  }
+}
+
 /**
  * Initializes and returns a DatabaseSync instance
  */
@@ -97,12 +176,14 @@ function initDatabase(dbPath = DEFAULT_DB_PATH) {
   }
 
   db.exec(SCHEMA_SQL);
+  migrateSchema(db);
 
   return db;
 }
 
 module.exports = {
   initDatabase,
+  migrateSchema,
   DEFAULT_DB_PATH,
   SCHEMA_SQL,
 };

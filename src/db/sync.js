@@ -8,7 +8,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { parseXlogLine } = require('./logfileParser');
-const { parseActiveDump, extractRunesFromMorgue, isFinishedMorgue } = require('./morgueParser');
+const { parseActiveDump, extractRunesFromMorgue, isFinishedMorgue, parseTimeDistribution } = require('./morgueParser');
+const { parseDcssVersion } = require('./constants');
 const logger = require('../logger');
 
 /**
@@ -242,9 +243,12 @@ function sync(db, options = {}) {
       id, name, species, species_abbr, background, background_abbr, combo, char_name,
       god, score, turns, aut, duration_seconds, start_time, end_time, place, branch,
       level, xl, hp, max_hp, mp, max_mp, killer, ktyp, dam, outcome, is_win,
-      runes_count, runes_list, turn_speed, source_file, morgue_file, version, seed,
-      game_type, is_active, raw_data
+      runes_count, runes_list, turn_speed, source_file, morgue_file, version,
+      version_major, version_minor, version_patch,
+      tactical_pct, explore_pct, inter_travel_pct, resting_pct, time_distribution,
+      seed, game_type, is_active, raw_data
     ) VALUES (
+      ?, ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?, ?, ?,
@@ -284,6 +288,14 @@ function sync(db, options = {}) {
       source_file = excluded.source_file,
       morgue_file = COALESCE(excluded.morgue_file, games.morgue_file),
       version = excluded.version,
+      version_major = excluded.version_major,
+      version_minor = excluded.version_minor,
+      version_patch = excluded.version_patch,
+      tactical_pct = COALESCE(excluded.tactical_pct, games.tactical_pct),
+      explore_pct = COALESCE(excluded.explore_pct, games.explore_pct),
+      inter_travel_pct = COALESCE(excluded.inter_travel_pct, games.inter_travel_pct),
+      resting_pct = COALESCE(excluded.resting_pct, games.resting_pct),
+      time_distribution = COALESCE(excluded.time_distribution, games.time_distribution),
       seed = excluded.seed,
       game_type = excluded.game_type,
       is_active = excluded.is_active,
@@ -353,16 +365,30 @@ function sync(db, options = {}) {
           const game = parseXlogLine(line, path.relative(path.dirname(dcssDir), logPath));
           if (!game) continue;
 
+          // Extract semantic version components
+          const vInfo = parseDcssVersion(game.version || (game.source_file?.includes('Trunk') ? 'trunk' : 'stable'));
+          game.version_major = vInfo.major;
+          game.version_minor = vInfo.minor;
+          game.version_patch = vInfo.patch;
+
+          // Initialize decaaut metrics
+          game.time_distribution = null;
+          game.tactical_pct = null;
+          game.explore_pct = null;
+          game.inter_travel_pct = null;
+          game.resting_pct = null;
+
           // Attempt morgue enrichment
           const expectedMorgue = getExpectedMorgueFilename(game, morgueFiles);
           if (expectedMorgue && morgueFiles.has(expectedMorgue)) {
             const fullMorguePath = morgueFiles.get(expectedMorgue);
             game.morgue_file = path.relative(path.dirname(dcssDir), fullMorguePath);
 
-            // If game had runes or was a win, enrich runes list
-            if (game.runes_count > 0 || game.is_win) {
-              try {
-                const morgueContent = fs.readFileSync(fullMorguePath, 'utf8');
+            try {
+              const morgueContent = fs.readFileSync(fullMorguePath, 'utf8');
+
+              // Runes list enrichment
+              if (game.runes_count > 0 || game.is_win) {
                 const runesData = extractRunesFromMorgue(morgueContent);
                 if (runesData.list.length > 0) {
                   game.runes_list = JSON.stringify(runesData.list);
@@ -370,9 +396,19 @@ function sync(db, options = {}) {
                     game.runes_count = runesData.count;
                   }
                 }
-              } catch (e) {
-                // Ignore read errors
               }
+
+              // Decaaut time distribution enrichment
+              const timeDist = parseTimeDistribution(morgueContent);
+              if (timeDist) {
+                game.time_distribution = JSON.stringify(timeDist);
+                game.tactical_pct = timeDist.tactical_pct;
+                game.explore_pct = timeDist.explore_pct;
+                game.inter_travel_pct = timeDist.inter_travel_pct;
+                game.resting_pct = timeDist.resting_pct;
+              }
+            } catch (e) {
+              // Ignore read errors
             }
           }
 
@@ -411,6 +447,14 @@ function sync(db, options = {}) {
             game.source_file,
             game.morgue_file,
             game.version,
+            game.version_major || 0,
+            game.version_minor || 0,
+            game.version_patch || 0,
+            game.tactical_pct ?? null,
+            game.explore_pct ?? null,
+            game.inter_travel_pct ?? null,
+            game.resting_pct ?? null,
+            game.time_distribution || null,
             game.seed,
             game.game_type,
             0, // completed games are not active
@@ -502,6 +546,12 @@ function sync(db, options = {}) {
       discoveredActiveIds.add(activeId);
       const nowIso = new Date(mtimeMs).toISOString();
 
+      // Semantic version components for active run
+      const vInfo = parseDcssVersion(activeData.version || (dumpPath.includes('Trunk') ? 'trunk' : 'stable'));
+      activeData.version_major = vInfo.major;
+      activeData.version_minor = vInfo.minor;
+      activeData.version_patch = vInfo.patch;
+
       upsertGame.run(
         activeId,
         activeData.name,
@@ -537,6 +587,14 @@ function sync(db, options = {}) {
         path.relative(path.dirname(dcssDir), dumpPath),
         activeData.morgue_file,
         activeData.version,
+        activeData.version_major || 0,
+        activeData.version_minor || 0,
+        activeData.version_patch || 0,
+        activeData.tactical_pct ?? null,
+        activeData.explore_pct ?? null,
+        activeData.inter_travel_pct ?? null,
+        activeData.resting_pct ?? null,
+        activeData.time_distribution || null,
         activeData.seed,
         'normal',
         1, // IS ACTIVE

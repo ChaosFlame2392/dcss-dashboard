@@ -204,6 +204,7 @@ function parseActiveDump(content, filePath = '') {
 
   const { count: runesCount, list: runesList } = extractRunesFromMorgue(content);
   const turnSpeed = durationSeconds > 0 ? Number((turns / durationSeconds).toFixed(2)) : 0.0;
+  const timeDist = parseTimeDistribution(content);
 
   return {
     name,
@@ -238,8 +239,84 @@ function parseActiveDump(content, filePath = '') {
     version,
     runes_count: runesCount,
     runes_list: runesList,
+    time_distribution: timeDist ? JSON.stringify(timeDist) : null,
+    tactical_pct: timeDist ? timeDist.tactical_pct : null,
+    explore_pct: timeDist ? timeDist.explore_pct : null,
+    inter_travel_pct: timeDist ? timeDist.inter_travel_pct : null,
+    resting_pct: timeDist ? timeDist.resting_pct : null,
     morgue_file: filePath,
     is_active: 1,
+  };
+}
+
+/**
+ * Parses decaaut time distribution from a DCSS morgue or active dump.
+ * (Feature introduced in DCSS 0.35 Trunk).
+ *
+ * @param {string} content
+ * @returns {object|null}
+ */
+function parseTimeDistribution(content) {
+  if (!content || !content.includes('Table legend: (Time is in decaauts)')) {
+    return null;
+  }
+
+  // Extract Total row:
+  // e.g. Total | 7136 | 6658 | 478 | 495 | 4924 | 7 | 1019.4 |
+  const totalMatch = content.match(/^\s*Total\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*([\d,]+)\s*\|\s*([\d,.]+)\s*\|/m);
+  if (!totalMatch) {
+    return null;
+  }
+
+  const parseNum = (str) => parseInt(str.replace(/,/g, ''), 10) || 0;
+  const parseFlt = (str) => parseFloat(str.replace(/,/g, '')) || 0.0;
+
+  const totalDecaauts = parseNum(totalMatch[1]); // A = Elapsed time
+  const nonTravelDecaauts = parseNum(totalMatch[2]); // B = Non-inter-level travel
+  const interTravelDecaauts = parseNum(totalMatch[3]); // C = Inter-level travel
+  const restingDecaauts = parseNum(totalMatch[4]); // D = Time resting
+  const exploreDecaauts = parseNum(totalMatch[5]); // E = Time spent auto-exploring
+  const levelsSeen = parseNum(totalMatch[6]); // F = Levels seen
+  const meanPerLevel = parseFlt(totalMatch[7]); // G = Mean time per level
+
+  // Tactical daAuts = B - (D + E)
+  const tacticalDecaauts = Math.max(0, nonTravelDecaauts - (restingDecaauts + exploreDecaauts));
+
+  // Percentages calculated over total elapsed decaauts (A)
+  const tacticalPct = totalDecaauts > 0 ? Number(((tacticalDecaauts / totalDecaauts) * 100).toFixed(2)) : 0.0;
+  const explorePct = totalDecaauts > 0 ? Number(((exploreDecaauts / totalDecaauts) * 100).toFixed(2)) : 0.0;
+  const interTravelPct = totalDecaauts > 0 ? Number(((interTravelDecaauts / totalDecaauts) * 100).toFixed(2)) : 0.0;
+  const restingPct = totalDecaauts > 0 ? Number(((restingDecaauts / totalDecaauts) * 100).toFixed(2)) : 0.0;
+
+  // Extract "Top non-repeatable levels by time:"
+  const topLevels = [];
+  const topSectionMatch = content.match(/Top non-repeatable levels by time:([\s\S]*?)(?:\r?\n\s*\r?\n\S|$)/);
+  if (topSectionMatch) {
+    const sectionText = topSectionMatch[1];
+    const levelRegex = /^\s*(.+?):\s*([\d,]+)\s*daAuts/gm;
+    let lMatch;
+    while ((lMatch = levelRegex.exec(sectionText)) !== null) {
+      topLevels.push({
+        place: lMatch[1].trim(),
+        daAuts: parseInt(lMatch[2].replace(/,/g, ''), 10) || 0,
+      });
+    }
+  }
+
+  return {
+    total_decaauts: totalDecaauts,
+    non_travel_decaauts: nonTravelDecaauts,
+    inter_travel_decaauts: interTravelDecaauts,
+    resting_decaauts: restingDecaauts,
+    explore_decaauts: exploreDecaauts,
+    levels_seen: levelsSeen,
+    mean_per_level: meanPerLevel,
+    tactical_decaauts: tacticalDecaauts,
+    tactical_pct: tacticalPct,
+    explore_pct: explorePct,
+    inter_travel_pct: interTravelPct,
+    resting_pct: restingPct,
+    top_levels: topLevels,
   };
 }
 
@@ -311,5 +388,6 @@ module.exports = {
   parseActiveDump,
   parseFinishedMorgue,
   parseTimeStringToSeconds,
+  parseTimeDistribution,
 };
 
